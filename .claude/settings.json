@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "for p in $CLAUDE_FILE_PATHS; do case \"$p\" in *.go) exec gocheck check --changed \"$CLAUDE_FILE_PATHS\" ;; esac; done",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit"
+      }
+    ]
+  }
+}

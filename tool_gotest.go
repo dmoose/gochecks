@@ -1,0 +1,120 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// testEvent is the subset of `go test -json` we care about.
+// The full schema is documented at `go doc cmd/test2json`.
+type testEvent struct {
+	Action  string  `json:"Action"`
+	Package string  `json:"Package"`
+	Test    string  `json:"Test"`
+	Output  string  `json:"Output"`
+	Elapsed float64 `json:"Elapsed"`
+}
+
+var testFailLineRE = regexp.MustCompile(`^\s*([^:\s][^:]*?\.go):(\d+):\s*(.+)$`)
+
+// runGoTest executes `go test -json` in pkgDir with a timeout and
+// converts any failures into error-class findings. Go's own test
+// cache handles incremental runs, so we don't double-cache.
+func runGoTest(pkgDir string, timeout time.Duration) ([]Finding, error) {
+	cmd := exec.Command("go", "test", "-json", "-timeout", timeout.String(), ".")
+	cmd.Dir = pkgDir
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	_ = cmd.Run()
+
+	findings := parseTestEvents(stdout.String(), pkgDir)
+	// Build / compile failures land on stderr, not in the JSON stream.
+	if stderr.Len() > 0 && len(findings) == 0 {
+		findings = append(findings, Finding{
+			File:  pkgDir,
+			Class: "error",
+			Tool:  "test",
+			Msg:   fmt.Sprintf("test binary build failed: %s", strings.TrimSpace(stderr.String())),
+		})
+	}
+	return findings, nil
+}
+
+func parseTestEvents(out, pkgDir string) []Finding {
+	type failure struct {
+		test    string
+		outputs []string
+	}
+	active := map[string]*failure{}
+	var fails []*failure
+
+	for line := range strings.SplitSeq(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var ev testEvent
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			continue
+		}
+		if ev.Test == "" {
+			continue
+		}
+		f, ok := active[ev.Test]
+		if !ok {
+			f = &failure{test: ev.Test}
+			active[ev.Test] = f
+		}
+		switch ev.Action {
+		case "output":
+			f.outputs = append(f.outputs, ev.Output)
+		case "fail":
+			fails = append(fails, f)
+			delete(active, ev.Test)
+		case "pass", "skip":
+			delete(active, ev.Test)
+		}
+	}
+
+	var fs []Finding
+	for _, f := range fails {
+		fs = append(fs, failureFinding(f.test, f.outputs, pkgDir))
+	}
+	return fs
+}
+
+func failureFinding(test string, outputs []string, pkgDir string) Finding {
+	// First t.Errorf/t.Fatalf line has the form "    file.go:line: message".
+	for _, o := range outputs {
+		o = strings.TrimRight(o, "\r\n")
+		if m := testFailLineRE.FindStringSubmatch(o); m != nil {
+			file := m[1]
+			if !filepath.IsAbs(file) {
+				file = filepath.Join(pkgDir, file)
+			}
+			ln, _ := strconv.Atoi(m[2])
+			return Finding{
+				File:  filepath.Clean(file),
+				Line:  ln,
+				Class: "error",
+				Tool:  "test",
+				Msg:   fmt.Sprintf("%s: %s", test, strings.TrimSpace(m[3])),
+			}
+		}
+	}
+	return Finding{
+		File:  pkgDir,
+		Class: "error",
+		Tool:  "test",
+		Msg:   fmt.Sprintf("%s failed", test),
+	}
+}

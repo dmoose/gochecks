@@ -1,0 +1,23 @@
+# built binary
+/gocheck
+
+# go test artifacts
+*.test
+*.out
+coverage.out
+coverage.html
+
+# go build cache / workspace state
+/vendor/
+go.work
+go.work.sum
+
+# editor / OS cruft
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# hook trace log (from HOOKS.md verification snippet)
+/tmp/gocheck-hook.log
