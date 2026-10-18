@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -53,12 +54,7 @@ func resolveChanged(in []string) ([]string, error) {
 }
 
 func isVendored(abs string) bool {
-	for _, seg := range strings.Split(filepath.ToSlash(abs), "/") {
-		if seg == "vendor" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(filepath.ToSlash(abs), "/"), "vendor")
 }
 
 var generatedRE = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)

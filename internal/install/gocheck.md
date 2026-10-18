@@ -7,9 +7,9 @@ background before the next agent turn and does four things:
 1. **Silently auto-applies `gofmt` + `goimports`** — the agent
    never sees whitespace noise.
 2. **Runs `go build` + `go vet` per changed package** — compile
-   and analysis errors surface before the agent's next action.
-   Non-zero exit codes block the hook, preventing the agent from
-   building on top of a broken state.
+   and analysis errors come back to the agent on stderr with exit
+   2, before its next action. Warnings and suggestions arrive as
+   `additionalContext` beside the tool result.
 3. **Runs probed bug detectors** when their binaries are on PATH:
    `staticcheck`, `errcheck`, `ineffassign`. Silent when absent.
 4. **Scope-filters findings** to the files the agent actually
@@ -25,16 +25,17 @@ self-correction loop. With the hook:
 - Formatting fixes are invisible — zero tokens spent.
 - Remaining findings are classified (error / warning /
   suggestion) and tightly scoped.
-- Compile-level errors block the hook, so the agent can't
-  commit a half-broken state and then try to fix it turn by turn.
+- Compile-level errors reach the agent immediately, so it can't
+  build on a half-broken state and fix it turn by turn later.
 - On any non-trivial Go repo, this saves 10-50k tokens per
   session and eliminates multiple error-recovery loops.
 
 ## Installed by `gocheck install`
 
-- `.claude/settings.json` — PostToolUse hook entry matching
-  `Edit|Write|MultiEdit` on `*.go` files. Non-destructively
-  merged with any pre-existing settings.
+- `.claude/settings.json` — PostToolUse hook entry (`gocheck hook`)
+  on `Edit|Write`. The hook reads the event from stdin and ignores
+  non-Go files itself. Non-destructively merged with any
+  pre-existing settings.
 - `.claude/skills/go-current/SKILL.md` — primes Claude to write
   Go 1.26 idioms on the first pass so modernize has less to
   rewrite.
@@ -120,13 +121,16 @@ Dry-run a single file without going through the hook.
 - `~/Library/Caches/gocheck/hook.log` — timestamped record of
   every hook invocation with duration, exit code, and finding
   count. Safe to delete anytime; recreated on next run.
-- Exit codes: `0` = clean or suggestions only; `1` = at least one
-  warning; `2` = at least one error (blocks the hook).
+- Hook exit codes: `0` = clean, or warnings/suggestions delivered
+  as `additionalContext`; `2` = at least one error, delivered on
+  stderr; `1` = hook misconfigured (shown to the user, not the
+  model). `gocheck check` from the shell keeps 0 / 1 / 2 by
+  highest class.
 
 ## Uninstall
 
 1. Open `.claude/settings.json`, remove the PostToolUse entry
-   whose `command` contains `gocheck check`. Keep other entries.
+   whose `command` is `gocheck hook`. Keep other entries.
 2. Delete `.claude/skills/go-current/` if you don't want the
    priming skill.
 3. Delete this file and `~/Library/Caches/gocheck/` if you want

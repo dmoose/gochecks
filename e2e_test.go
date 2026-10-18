@@ -247,15 +247,19 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 	if len(post) != 2 {
 		t.Fatalf("expected 2 PostToolUse entries (existing + gocheck); got %d: %+v", len(post), post)
 	}
-	// The gocheck entry must be present; match by command substring.
+	// The gocheck entry must be present with the stdin-driven command
+	// and a matcher naming the current editing tools.
 	foundGocheck := false
 	for _, e := range post {
 		m, _ := e.(map[string]any)
 		hs, _ := m["hooks"].([]any)
 		for _, h := range hs {
 			hm, _ := h.(map[string]any)
-			if cmd, _ := hm["command"].(string); strings.Contains(cmd, "gocheck check") {
+			if cmd, _ := hm["command"].(string); cmd == hookCommand {
 				foundGocheck = true
+				if m["matcher"] != hookMatcher {
+					t.Errorf("matcher: got %v, want %q", m["matcher"], hookMatcher)
+				}
 			}
 		}
 	}

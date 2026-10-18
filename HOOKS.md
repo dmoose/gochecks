@@ -18,12 +18,9 @@ markdown, Xcode, etc. repos and either waste cycles or error out.
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write",
         "hooks": [
-          {
-            "type": "command",
-            "command": "for p in $CLAUDE_FILE_PATHS; do case \"$p\" in *.go) exec /absolute/path/to/gocheck check --changed \"$CLAUDE_FILE_PATHS\" ;; esac; done"
-          }
+          { "type": "command", "command": "gocheck hook" }
         ]
       }
     ]
@@ -31,31 +28,41 @@ markdown, Xcode, etc. repos and either waste cycles or error out.
 }
 ```
 
-- Matches Claude Code's three edit tools (`Edit`, `Write`,
-  `MultiEdit`).
-- The `case` guard on `*.go` short-circuits non-Go edits without
-  spawning gocheck at all.
-- `$CLAUDE_FILE_PATHS` is a whitespace-separated list of the files
-  the tool call touched. gocheck's `--changed` accepts whitespace-
-  or comma-separated lists.
-- Use an absolute path to the `gocheck` binary. `$PATH` inside hook
-  shells is minimal.
+`gocheck install` writes exactly this, merging into any existing
+settings. The hook subcommand reads the PostToolUse event from stdin,
+takes `tool_input.file_path`, and returns silently for anything that
+is not a Go source file, so no shell glue is needed. Hooks inherit
+the parent environment; `gocheck` must be on that PATH (`make
+install` puts it on `$GOPATH/bin`).
 
 For a live example see [`.claude/settings.json`](./.claude/settings.json)
 in this repo.
 
-## Exit-code semantics
+## What the model sees
 
-| Exit | Meaning                            | Hook treatment   |
-|------|------------------------------------|------------------|
-| 0    | Clean, or only `suggestion`-class  | Silent pass      |
-| 1    | At least one `warning`             | Nudge            |
-| 2    | At least one `error` (vet, etc.)   | Block next turn  |
+Claude Code only surfaces two channels from a PostToolUse hook: stderr
+on exit 2, and a JSON object on stdout on exit 0. Plain stdout on
+exit 0 goes to the debug log, and exit 1 shows the user a notice the
+model never reads. `gocheck hook` maps findings onto those channels:
 
-Claude Code's hook layer surfaces non-zero exits to the agent as a
-system message. Exit 2 is reserved for semantically-wrong code;
-exit 1 is for style/lint warnings that should be noticed but not
-blocking.
+| Findings                    | Channel                                   | Exit |
+|-----------------------------|-------------------------------------------|------|
+| none                        | nothing                                   | 0    |
+| warnings / suggestions only | `hookSpecificOutput.additionalContext`    | 0    |
+| any `error`                 | text on stderr                            | 2    |
+| hook misconfigured          | message on stderr (user sees it)          | 1    |
+
+Both report forms are the same compact text: one line per finding,
+paths relative to the session `cwd`:
+
+```
+gocheck: 2 finding(s)
+pkg/a.go:3:4 warning/staticcheck: unused variable x
+pkg/a.go:9:2 suggestion/modernize: for i := 0; i < n; i++ → for i := range n
+```
+
+The `check` subcommand keeps its own exit codes (0 / 1 / 2 by highest
+class) for shell and CI use.
 
 ## Silent mid-turn file rewrites
 
@@ -86,7 +93,7 @@ following are skipped unconditionally in `--changed`:
 - Files whose header line matches `// Code generated ... DO NOT EDIT.`
   anywhere before the `package` clause
 
-The agent's hook doesn't need to pre-filter `$CLAUDE_FILE_PATHS`.
+Repo-specific patterns go in `.gocheck.json` under `exclude`.
 
 ## Optional tools
 
@@ -117,18 +124,18 @@ When `linters: true` and `golangci-lint` is on PATH:
 
 ## Verifying the hook is wired
 
-From the repo root:
+```bash
+gocheck status            # tool probes, config, last 20 hook invocations
+tail -f ~/Library/Caches/gocheck/hook.log
+```
+
+Every invocation appends a line with duration, exit code, finding
+count, and (for `hook`) the edited file. Edit a `.go` file through
+Claude Code and an `args=[hook] file=...` line should appear.
+
+To run the hook by hand, feed it an event:
 
 ```bash
-# Touch a .go file and confirm gocheck runs against it.
-./gocheck check --changed some_file.go
+printf '{"cwd":"%s","tool_input":{"file_path":"%s/main.go"}}' "$PWD" "$PWD" | gocheck hook
 echo "exit=$?"
 ```
-
-If you want to observe hook firings, add a trace line:
-
-```json
-"command": "echo \"[gocheck-hook] $CLAUDE_FILE_PATHS\" >> /tmp/gocheck-hook.log; for p in $CLAUDE_FILE_PATHS; do case \"$p\" in *.go) exec /absolute/path/to/gocheck check --changed \"$CLAUDE_FILE_PATHS\" ;; esac; done"
-```
-
-Then `tail -f /tmp/gocheck-hook.log` while the agent works.

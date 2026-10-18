@@ -16,10 +16,15 @@ var goCurrentSkill string
 //go:embed internal/install/gocheck.md
 var gocheckDoc string
 
-// hookCommand is what gets wired into .claude/settings.json. Uses a
-// bare `gocheck` invocation so the user's PATH is the single source of
-// truth; `make install` puts gocheck on $GOPATH/bin.
-const hookCommand = `for p in $CLAUDE_FILE_PATHS; do case "$p" in *.go) exec gocheck check --changed "$CLAUDE_FILE_PATHS" ;; esac; done`
+// hookCommand is what gets wired into .claude/settings.json. The hook
+// subcommand reads the PostToolUse event from stdin and ignores
+// non-Go files itself, so no shell glue is needed. Bare `gocheck` so
+// the user's PATH is the single source of truth.
+const hookCommand = `gocheck hook`
+
+// hookMatcher names the file-editing tools. NotebookEdit is left out
+// on purpose; a Go file in a notebook is not a thing we check.
+const hookMatcher = "Edit|Write"
 
 func runInstall(args []string) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
@@ -94,7 +99,7 @@ func installHook(root string, overwrite bool) error {
 	}
 
 	hook := map[string]any{
-		"matcher": "Edit|Write|MultiEdit",
+		"matcher": hookMatcher,
 		"hooks": []any{
 			map[string]any{
 				"type":    "command",
@@ -147,7 +152,12 @@ func findGocheckHook(entries []any) int {
 }
 
 func containsGocheck(s string) bool {
-	return strings.Contains(s, "gocheck check") || strings.Contains(s, "gocheck fix")
+	for _, sub := range []string{"gocheck hook", "gocheck check", "gocheck fix"} {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 func installSkill(root string, overwrite bool) error {

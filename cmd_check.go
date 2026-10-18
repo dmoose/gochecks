@@ -49,13 +49,25 @@ func runCheck(args []string) int {
 }
 
 func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
+	findings, err := check(files, noApply, cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gocheck:", err)
+		return 2
+	}
+	invocationFindings = len(findings)
+	emit(findings, textOut)
+	return exitFor(findings)
+}
+
+// check formats (or reports formatting for) files, then runs the
+// per-package analyzers and returns the scoped findings.
+func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	var findings []Finding
 
 	if noApply {
 		fmtFindings, err := runGofmt(files, false)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck: gofmt:", err)
-			return 2
+			return nil, fmt.Errorf("gofmt: %w", err)
 		}
 		findings = append(findings, fmtFindings...)
 
@@ -64,16 +76,12 @@ func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
 		case err == errGoimportsMissing:
 			fmt.Fprintln(os.Stderr, goimportsMissingNote)
 		case err != nil:
-			fmt.Fprintln(os.Stderr, "gocheck: goimports:", err)
-			return 2
+			return nil, fmt.Errorf("goimports: %w", err)
 		default:
 			findings = append(findings, impFindings...)
 		}
-	} else {
-		if err := applyFormat(files); err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck:", err)
-			return 2
-		}
+	} else if err := applyFormat(files); err != nil {
+		return nil, err
 	}
 
 	scope := make(map[string]bool, len(files))
@@ -84,8 +92,7 @@ func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
 	pkgs := groupByPackage(files)
 	pkgFindings, err := analyzePackages(pkgs, scope, cfg)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck:", err)
-		return 2
+		return nil, err
 	}
 	findings = append(findings, pkgFindings...)
 
@@ -95,16 +102,12 @@ func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
 	if cfg.AutoFix && !hasBlockingFinding(findings) {
 		for pkgDir := range pkgs {
 			if err := runModernize(pkgDir); err != nil {
-				fmt.Fprintln(os.Stderr, "gocheck: auto_fix modernize:", err)
-				return 2
+				return nil, fmt.Errorf("auto_fix modernize: %w", err)
 			}
 			findings = append(findings, modernizeConflicts(pkgDir)...)
 		}
 	}
-
-	invocationFindings = len(findings)
-	emit(findings, textOut)
-	return exitFor(findings)
+	return findings, nil
 }
 
 type pkgResult struct {
@@ -167,6 +170,11 @@ func analyzeOne(pkgDir string, scope map[string]bool, cfg Config, p toolProbes) 
 		return r
 	}
 	r.findings = append(r.findings, filterScope(build, scope)...)
+	// A package that does not compile has nothing further to say: every
+	// analyzer would only echo the same type errors back.
+	if len(build) > 0 {
+		return r
+	}
 
 	vet, err := runVet(pkgDir)
 	if err != nil {

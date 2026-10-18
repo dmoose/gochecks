@@ -29,6 +29,10 @@ func cacheDir() (string, error) {
 // hook log entry can record how many findings were emitted.
 var invocationFindings int
 
+// invocationNote is extra detail for the log line; the hook subcommand
+// records the edited file here since it arrives on stdin, not in args.
+var invocationNote string
+
 // logInvocation appends a single line to <cacheDir>/hook.log summarizing
 // the run. Called unconditionally from main so that even failed or
 // silent runs leave a trace — this solves the "did the hook actually
@@ -48,6 +52,10 @@ func logInvocation(args []string, code int, dur time.Duration) {
 	defer func() { _ = f.Close() }()
 
 	ts := time.Now().UTC().Format(time.RFC3339)
-	_, _ = fmt.Fprintf(f, "%s dur=%s exit=%d findings=%d args=[%s]\n",
+	line := fmt.Sprintf("%s dur=%s exit=%d findings=%d args=[%s]",
 		ts, dur.Round(time.Millisecond), code, invocationFindings, strings.Join(args, " "))
+	if invocationNote != "" {
+		line += " file=" + invocationNote
+	}
+	_, _ = fmt.Fprintln(f, line)
 }

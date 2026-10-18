@@ -7,11 +7,12 @@ Runs the standard Go toolchain (`gofmt`, `goimports`, `go build`,
 (`staticcheck`, `errcheck`, `ineffassign`) and an optional
 `golangci-lint` umbrella over a set of changed files, and returns a
 **structured, change-scoped, deduplicated** summary instead of raw
-tool stdout. Designed to be called from Claude Code `PostToolUse`
-hooks so the agent gets minimal tokens of maximally useful signal.
+tool stdout. The `hook` subcommand is a Claude Code `PostToolUse` hook:
+it reads the edit event from stdin and hands findings back through
+the channels the model actually sees.
 
-**Status:** v0.6. `check` / `fix` / `show` / `status` / `install`
-live. Package-level parallelism, `.gocheck.json` config, opt-in
+**Status:** v0.7-dev. `hook` / `check` / `fix` / `show` / `status` /
+`install` live. Package-level parallelism, `.gocheck.json` config, opt-in
 `golangci-lint` umbrella, embedded `go-current` skill, one-command
 scaffold (hook + skill + install-time doc) via `gocheck install`.
 See [DESIGN.md](./DESIGN.md) for scope and [HOOKS.md](./HOOKS.md)
@@ -42,4 +43,4 @@ returns a tight summary of what needs attention.
 
 ## License
 
-TBD.
+MIT.

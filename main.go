@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const version = "0.6.1"
+const version = "0.7.0-dev"
 
 func main() {
 	start := time.Now()
@@ -31,6 +31,8 @@ func dispatch(args []string) int {
 		return runStatus(args[1:])
 	case "install":
 		return runInstall(args[1:])
+	case "hook":
+		return runHook(args[1:])
 	case "version", "--version", "-v":
 		fmt.Println("gocheck", version)
 		return 0
@@ -51,6 +53,7 @@ Usage:
   gocheck check [flags] [--changed "<file>..."] [file...]
   gocheck fix   [flags] [--changed "<file>..."] [file...]
   gocheck show    [--context N] <file:line>
+  gocheck hook
   gocheck status
   gocheck install [--dir .] [--force] [--upgrade] [--no-hook] [--no-skill] [--no-doc] [--config]
   gocheck version
@@ -68,6 +71,10 @@ Flags for 'fix':
 'check' silently applies gofmt + goimports, then runs analyzers.
 'fix'   additionally runs 'go fix' modernize on the changed packages
         before re-checking.
+
+'hook'  reads a Claude Code PostToolUse event from stdin and checks the
+        edited file. Errors go to stderr with exit 2; warnings and
+        suggestions return as additionalContext. Wired by 'install'.
 
 Positional file args are equivalent to --changed entries.
 
