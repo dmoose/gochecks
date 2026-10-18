@@ -4,13 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
-// runStatus prints a self-diagnostic: cache stats, last hook log
-// entries, and tool probes. Intended for "is this thing wired
-// correctly?" checks from the shell.
+// runStatus prints the loaded config and the hook log tail. Tool
+// health is `gocheck doctor`.
 func runStatus(args []string) int {
 	const tailN = 20
 
@@ -25,12 +23,6 @@ func runStatus(args []string) int {
 
 	fmt.Println("state dir:")
 	fmt.Println("  path:", dir)
-	fmt.Println()
-
-	fmt.Println("tools:")
-	for _, t := range []string{"go", "gofmt", "goimports", "staticcheck", "errcheck", "ineffassign", "golangci-lint", "gocheck"} {
-		fmt.Printf("  %-12s %s\n", t+":", probe(t))
-	}
 	fmt.Println()
 
 	cwd, _ := os.Getwd()
@@ -62,14 +54,6 @@ func runStatus(args []string) int {
 	}
 	_ = args
 	return 0
-}
-
-func probe(tool string) string {
-	path, err := exec.LookPath(tool)
-	if err != nil {
-		return "not found"
-	}
-	return path
 }
 
 // tailLines returns the last n lines of path, in file order.

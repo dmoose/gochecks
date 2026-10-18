@@ -39,9 +39,13 @@ func runGolangciLint(pkgDir string, autoFix bool) ([]Finding, error) {
 	args = append(args, "./...")
 	cmd := exec.Command("golangci-lint", args...)
 	cmd.Dir = pkgDir
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	_ = cmd.Run()
+	// A toolchain mismatch aborts before any JSON is written.
+	if toolBroken(stderr.String()) {
+		return brokenFinding("golangci-lint", pkgDir), nil
+	}
 	return parseGolangciLint(stdout.String(), pkgDir), nil
 }
 
@@ -55,6 +59,9 @@ func parseGolangciLint(out, pkgDir string) []Finding {
 	}
 	fs := make([]Finding, 0, len(rep.Issues))
 	for _, is := range rep.Issues {
+		if is.FromLinter == "typecheck" && toolBroken(is.Text) {
+			return brokenFinding("golangci-lint", pkgDir)
+		}
 		file := is.Pos.Filename
 		if file == "" {
 			continue

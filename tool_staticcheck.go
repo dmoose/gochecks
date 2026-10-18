@@ -31,6 +31,9 @@ func runStaticcheck(pkgDir string) ([]Finding, error) {
 }
 
 func parseStaticcheck(out, pkgDir string) []Finding {
+	if toolBroken(out) {
+		return brokenFinding("staticcheck", pkgDir)
+	}
 	var fs []Finding
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)

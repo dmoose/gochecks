@@ -33,6 +33,8 @@ func dispatch(args []string) int {
 		return runInstall(args[1:])
 	case "hook":
 		return runHook(args[1:])
+	case "doctor":
+		return runDoctor(args[1:])
 	case "version", "--version", "-v":
 		fmt.Println("gocheck", version)
 		return 0
@@ -55,6 +57,7 @@ Usage:
   gocheck show    [--context N] <file:line>
   gocheck hook
   gocheck status
+  gocheck doctor  [--fix] [--offline]
   gocheck install [--dir .] [--force] [--upgrade] [--no-hook] [--no-skill] [--no-doc] [--config]
   gocheck version
   gocheck help
@@ -72,6 +75,9 @@ Flags for 'fix':
 'fix'   additionally runs 'go fix' modernize on the changed packages
         before re-checking.
 
+'doctor' checks the Go toolchain and every tool gocheck drives: present,
+        built against the current toolchain, current with its latest
+        release, and the repo's hook wiring. --fix runs the installs.
 'hook'  reads a Claude Code PostToolUse event from stdin and checks the
         edited file. Errors go to stderr with exit 2; warnings and
         suggestions return as additionalContext. Wired by 'install'.

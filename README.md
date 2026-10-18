@@ -12,7 +12,7 @@ it reads the edit event from stdin and hands findings back through
 the channels the model actually sees.
 
 **Status:** v0.7-dev. `hook` / `check` / `fix` / `show` / `status` /
-`install` live. Package-level parallelism, `.gocheck.json` config, opt-in
+`doctor` / `install` live. Package-level parallelism, `.gocheck.json` config, opt-in
 `golangci-lint` umbrella, embedded `go-current` skill, one-command
 scaffold (hook + skill + install-time doc) via `gocheck install`.
 See [DESIGN.md](./DESIGN.md) for scope and [HOOKS.md](./HOOKS.md)
@@ -24,6 +24,7 @@ for Claude Code integration.
 go install git.6-p.cc/catapulsion/gocheck@latest
 cd path/to/your/go/repo
 gocheck install --config     # scaffold hook + skill + config
+gocheck doctor               # toolchain + analyzer health; --fix installs
 ```
 
 ## Why

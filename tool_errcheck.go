@@ -21,14 +21,17 @@ func errcheckAvailable() bool {
 func runErrcheck(pkgDir string) ([]Finding, error) {
 	cmd := exec.Command("errcheck", "./...")
 	cmd.Dir = pkgDir
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
 	// errcheck exits non-zero on findings; expected, not an error.
 	_ = cmd.Run()
-	return parseErrcheck(stdout.String(), pkgDir), nil
+	return parseErrcheck(out.String(), pkgDir), nil
 }
 
 func parseErrcheck(out, pkgDir string) []Finding {
+	if toolBroken(out) {
+		return brokenFinding("errcheck", pkgDir)
+	}
 	var fs []Finding
 	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimRight(line, "\r")

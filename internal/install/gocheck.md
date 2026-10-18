@@ -47,15 +47,15 @@ self-correction loop. With the hook:
 ### 1. Install the optional tools (all probed-for-present)
 
 ```bash
-go install golang.org/x/tools/cmd/goimports@latest
-go install honnef.co/go/tools/cmd/staticcheck@latest
-go install github.com/kisielk/errcheck@latest
-go install github.com/gordonklaus/ineffassign@latest
+gocheck doctor --fix
 ```
 
-Each adds a bug-detection layer. None is disruptively slow
-(~50-200ms per package, Go's build cache handles transitive
-invalidation correctly).
+Installs or updates `goimports`, `staticcheck`, `errcheck`,
+`ineffassign` (and `golangci-lint` when `linters` is on). Each adds
+a bug-detection layer at ~50-200ms per package. Run `gocheck doctor`
+again after a Go upgrade: analyzers built against an older Go stop
+reading the new export data, and the hook reports them as a single
+warning until they are rebuilt.
 
 ### 2. Drop a `.gocheck.json` at the repo root if you want tuning
 
@@ -102,11 +102,13 @@ linters:
 ### 4. Verify it's wired
 
 ```bash
+gocheck doctor
 gocheck status
 ```
 
-Shows tool probes, loaded config, and the last 20 hook
-invocations with duration and exit code. If the hook log stays
+`doctor` shows the toolchain, each tool's health, and whether this
+repo's hook is wired. `status` shows the loaded config and the last
+20 hook invocations with duration and exit code. If the hook log stays
 empty after you edit a `.go` file through Claude Code, the hook
 isn't firing — see `HOOKS.md` in the gocheck repo for debug tips.
 

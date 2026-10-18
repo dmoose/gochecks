@@ -98,7 +98,9 @@ Repo-specific patterns go in `.gocheck.json` under `exclude`.
 ## Optional tools
 
 `gocheck` probes for these at runtime and uses them when present;
-absent ones are silently skipped:
+absent ones are silently skipped. `gocheck doctor` reports which are
+installed, whether they still work against the current Go toolchain,
+and whether a newer release exists; `doctor --fix` installs them:
 
 - `staticcheck` — extended static analysis, class `warning`.
 - `errcheck` — unchecked error returns, class `warning`.
@@ -125,7 +127,8 @@ When `linters: true` and `golangci-lint` is on PATH:
 ## Verifying the hook is wired
 
 ```bash
-gocheck status            # tool probes, config, last 20 hook invocations
+gocheck doctor            # toolchain, tool health, hook wiring for this repo
+gocheck status            # config and the last 20 hook invocations
 tail -f ~/Library/Caches/gocheck/hook.log
 ```
 
