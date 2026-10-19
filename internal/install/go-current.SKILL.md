@@ -152,17 +152,17 @@ sometimes creating conflicts with other modernize passes.
 
 The analyzer gives up when two modernizations overlap (e.g. rewriting
 a loop to `slices.Contains` conflicts with rewriting `strings.Split`
-inside the same loop to `SplitSeq`). When that happens, `gocheck fix`
+inside the same loop to `SplitSeq`). When that happens, `gochecks fix`
 emits a `suggestion`-class finding pointing at the package. Resolve
 by hand — pick one transformation, apply, re-run.
 
 ## Why this matters here
 
-`gocheck` hooks fire after every edit. Modern idioms on the first
+`gochecks` hooks fire after every edit. Modern idioms on the first
 pass means:
 
 1. `gofmt` + `goimports` touch nothing — less silent rewrite noise.
-2. `go fix modernize` (on `gocheck fix`, or silently on every hook
+2. `go fix modernize` (on `gochecks fix`, or silently on every hook
    fire if `auto_fix: true`) applies zero changes instead of
    iterating to a fixed point.
 3. `go vet` and `staticcheck` have fewer style-adjacent hints to

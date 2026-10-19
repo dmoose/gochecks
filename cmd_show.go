@@ -19,18 +19,18 @@ func runShow(args []string) int {
 		return 2
 	}
 	if fs.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "gocheck show: expected <file:line>")
+		fmt.Fprintln(os.Stderr, "gochecks show: expected <file:line>")
 		return 2
 	}
 
 	file, line, err := parseFileLine(fs.Arg(0))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck show:", err)
+		fmt.Fprintln(os.Stderr, "gochecks show:", err)
 		return 2
 	}
 	abs, err := filepath.Abs(file)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck show:", err)
+		fmt.Fprintln(os.Stderr, "gochecks show:", err)
 		return 2
 	}
 
@@ -39,7 +39,7 @@ func runShow(args []string) int {
 	pkgDir := filepath.Dir(abs)
 	findings, err := runVet(pkgDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "\ngocheck show: vet:", err)
+		fmt.Fprintln(os.Stderr, "\ngochecks show: vet:", err)
 		return 2
 	}
 	var matched []Finding

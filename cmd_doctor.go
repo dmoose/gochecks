@@ -40,7 +40,7 @@ func (r toolReport) needsInstall(cfg Config) bool {
 	return r.broken || r.outdated()
 }
 
-// runDoctor checks the Go toolchain and every tool gocheck drives:
+// runDoctor checks the Go toolchain and every tool gochecks drives:
 // present, built against the current toolchain, and current with its
 // module's latest release. --fix runs the installs. Exit 1 when
 // anything needs attention.
@@ -61,7 +61,7 @@ func runDoctor(args []string) int {
 	cfg, _ := loadConfig(cwd)
 
 	goVer, goPath := goToolchain()
-	fmt.Printf("gocheck %s (%s)\n\n", version, selfPath())
+	fmt.Printf("gochecks %s (%s)\n\n", version, selfPath())
 
 	var latestGo string
 	if !offline {
@@ -90,7 +90,7 @@ func runDoctor(args []string) int {
 	if !fix {
 		// One install per line: go install @version accepts only
 		// packages from a single module per invocation.
-		fmt.Println("to update, run gocheck doctor --fix, or:")
+		fmt.Println("to update, run gochecks doctor --fix, or:")
 		for _, pkg := range installs {
 			fmt.Println("  go install " + pkg)
 		}
@@ -101,7 +101,7 @@ func runDoctor(args []string) int {
 		cmd := exec.Command("go", "install", pkg)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "gocheck doctor: %s: %v\n", pkg, err)
+			fmt.Fprintf(os.Stderr, "gochecks doctor: %s: %v\n", pkg, err)
 			return 1
 		}
 	}
@@ -132,7 +132,7 @@ func selfPath() string {
 }
 
 // goToolchain reports the version and path of the go on PATH, which
-// is what every subprocess gocheck spawns will use.
+// is what every subprocess gochecks spawns will use.
 func goToolchain() (ver, path string) {
 	path, err := exec.LookPath("go")
 	if err != nil {
@@ -241,7 +241,7 @@ func latestModuleVersion(module string) string {
 // probeTypecheck runs the tool on a trivial package written for the
 // current toolchain and reports whether it choked on export data.
 func probeTypecheck(tool, goVer string) bool {
-	dir, err := os.MkdirTemp("", "gocheck-doctor-")
+	dir, err := os.MkdirTemp("", "gochecks-doctor-")
 	if err != nil {
 		return false
 	}
@@ -315,16 +315,16 @@ func repoWiring(cwd string, cfg Config) string {
 	data, err := os.ReadFile(settings)
 	switch {
 	case err != nil:
-		b.WriteString("  hook:   not wired (run gocheck install)\n")
+		b.WriteString("  hook:   not wired (run gochecks install)\n")
 	case strings.Contains(string(data), hookCommand):
 		b.WriteString("  hook:   wired\n")
 	case containsGocheck(string(data)):
-		b.WriteString("  hook:   older command in .claude/settings.json (run gocheck install --upgrade)\n")
+		b.WriteString("  hook:   older command in .claude/settings.json (run gochecks install --upgrade)\n")
 	default:
-		b.WriteString("  hook:   not wired (run gocheck install)\n")
+		b.WriteString("  hook:   not wired (run gochecks install)\n")
 	}
 	if cfg.Path == "" {
-		b.WriteString("  config: defaults (no .gocheck.json)")
+		b.WriteString("  config: defaults (no .gochecks.json)")
 	} else {
 		fmt.Fprintf(&b, "  config: %s (test=%t auto_fix=%t linters=%t)", cfg.Path, cfg.Test, cfg.AutoFix, cfg.Linters)
 	}

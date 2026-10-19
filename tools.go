@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// toolSpec describes an external tool gocheck can drive: how to find
+// toolSpec describes an external tool gochecks can drive: how to find
 // it, where it comes from, and whether it typechecks (and so can break
 // when the Go toolchain moves ahead of the build it was compiled with).
 type toolSpec struct {
@@ -46,7 +46,7 @@ func brokenFinding(tool, pkgDir string) []Finding {
 		File:  pkgDir,
 		Class: "warning",
 		Tool:  tool,
-		Msg:   "cannot analyze code built with this Go toolchain; run `gocheck doctor`",
+		Msg:   "cannot analyze code built with this Go toolchain; run `gochecks doctor`",
 	}}
 }
 

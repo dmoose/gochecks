@@ -15,7 +15,7 @@ func TestParseBuildInfo(t *testing.T) {
 func TestToolBroken(t *testing.T) {
 	broken := []string{
 		`-: internal error in importing "internal/byteorder" (cannot decode "internal/byteorder", export data version 5 is greater than maximum supported version 2); please report an issue (compile)`,
-		`2026/10/22 11:38:45 internal error: package "flag" without types was imported from "git.6-p.cc/catapulsion/gocheck"`,
+		`2026/10/22 11:38:45 internal error: package "flag" without types was imported from "github.com/dmoose/gochecks"`,
 		`could not import flag (/usr/local/go/src/flag/flag.go:86:2: could not import encoding (-: could not load export data: internal error in importing "encoding"`,
 		`Error: can't load config: the Go language version (go1.26) used to build golangci-lint is lower than the targeted Go version (1.27)`,
 	}

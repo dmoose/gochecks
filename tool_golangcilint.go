@@ -76,7 +76,7 @@ func parseGolangciLint(out, pkgDir string) []Finding {
 		}
 		// Some linters are covered by our direct-probe path
 		// (errcheck, ineffassign, staticcheck, govet). If users have
-		// enabled gocheck's linters umbrella, the umbrella owns them;
+		// enabled gochecks's linters umbrella, the umbrella owns them;
 		// skip the duplicate class overrides.
 		fs = append(fs, Finding{
 			File:  file,

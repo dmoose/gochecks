@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// cacheDir returns the directory used for gocheck's own artifacts
+// cacheDir returns the directory used for gochecks's own artifacts
 // (currently just hook.log). The name is historical — an earlier
 // version kept a per-tool finding cache here; that's been removed in
 // favor of Go's own build cache, which handles transitive
@@ -18,7 +18,7 @@ func cacheDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(base, "gocheck")
+	dir := filepath.Join(base, "gochecks")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}

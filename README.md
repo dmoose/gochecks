@@ -1,4 +1,4 @@
-# gocheck
+# gochecks
 
 Context-efficient Go toolchain dispatcher for LLM/agent workflows.
 
@@ -12,19 +12,19 @@ it reads the edit event from stdin and hands findings back through
 the channels the model actually sees.
 
 **Status:** v0.7-dev. `hook` / `check` / `fix` / `show` / `status` /
-`doctor` / `install` live. Package-level parallelism, `.gocheck.json` config, opt-in
+`doctor` / `install` live. Package-level parallelism, `.gochecks.json` config, opt-in
 `golangci-lint` umbrella, embedded `go-current` skill, one-command
-scaffold (hook + skill + install-time doc) via `gocheck install`.
+scaffold (hook + skill + install-time doc) via `gochecks install`.
 See [DESIGN.md](./DESIGN.md) for scope and [HOOKS.md](./HOOKS.md)
 for Claude Code integration.
 
 ## Quick start
 
 ```bash
-go install git.6-p.cc/catapulsion/gocheck@latest
+go install github.com/dmoose/gochecks@latest
 cd path/to/your/go/repo
-gocheck install --config     # scaffold hook + skill + config
-gocheck doctor               # toolchain + analyzer health; --fix installs
+gochecks install --config     # scaffold hook + skill + config
+gochecks doctor               # toolchain + analyzer health; --fix installs
 ```
 
 ## Why
@@ -32,7 +32,7 @@ gocheck doctor               # toolchain + analyzer health; --fix installs
 Raw toolchain output is expensive in LLM context. A single `go vet ./...`
 plus `gofmt -d` plus `go fix -diff ./...` can dump kilobytes of text — most
 of it either pre-existing (unrelated to the agent's change) or redundant
-across tools. `gocheck` wraps those tools with a change-scope filter, a
+across tools. `gochecks` wraps those tools with a change-scope filter, a
 classification scheme, and an auto-apply path for safe fixes, so the hook
 returns a tight summary of what needs attention.
 

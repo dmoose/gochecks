@@ -90,7 +90,7 @@ func TestHookReportShape(t *testing.T) {
 		{File: "/repo", Class: "suggestion", Tool: "modernize", Msg: "1 fix skipped"},
 	}
 	got := hookReport(findings, "/repo")
-	want := "gocheck: 3 finding(s)\npkg/a.go:3:4 warning/staticcheck: unused\n/elsewhere/b.go:1:1 suggestion/modernize: range\n./ suggestion/modernize: 1 fix skipped\n"
+	want := "gochecks: 3 finding(s)\npkg/a.go:3:4 warning/staticcheck: unused\n/elsewhere/b.go:1:1 suggestion/modernize: range\n./ suggestion/modernize: 1 fix skipped\n"
 	if got != want {
 		t.Errorf("report:\n got %q\nwant %q", got, want)
 	}

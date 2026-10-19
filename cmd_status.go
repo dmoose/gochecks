@@ -8,17 +8,17 @@ import (
 )
 
 // runStatus prints the loaded config and the hook log tail. Tool
-// health is `gocheck doctor`.
+// health is `gochecks doctor`.
 func runStatus(args []string) int {
 	const tailN = 20
 
 	dir, err := cacheDir()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck: cacheDir:", err)
+		fmt.Fprintln(os.Stderr, "gochecks: cacheDir:", err)
 		return 2
 	}
 
-	fmt.Println("gocheck", version)
+	fmt.Println("gochecks", version)
 	fmt.Println()
 
 	fmt.Println("state dir:")
@@ -31,7 +31,7 @@ func runStatus(args []string) int {
 	if cfgErr != nil {
 		fmt.Printf("  error:  %v\n", cfgErr)
 	} else if cfg.Path == "" {
-		fmt.Println("  (defaults — no .gocheck.json found walking up from cwd)")
+		fmt.Println("  (defaults — no .gochecks.json found walking up from cwd)")
 	} else {
 		fmt.Printf("  file:   %s\n", cfg.Path)
 	}

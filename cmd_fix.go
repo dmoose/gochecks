@@ -25,7 +25,7 @@ func runFix(args []string) int {
 
 	files, err := resolveChanged(raw)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck:", err)
+		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
 	if len(files) == 0 {
@@ -33,7 +33,7 @@ func runFix(args []string) int {
 	}
 	cfg, err := loadConfig(filepath.Dir(files[0]))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck: config:", err)
+		fmt.Fprintln(os.Stderr, "gochecks: config:", err)
 		return 2
 	}
 	files = cfg.applyExclude(files)
@@ -42,7 +42,7 @@ func runFix(args []string) int {
 	}
 
 	if err := applyFormat(files); err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck:", err)
+		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
 
@@ -50,13 +50,13 @@ func runFix(args []string) int {
 	var extra []Finding
 	for pkgDir := range pkgs {
 		if err := runModernize(pkgDir); err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck: modernize:", err)
+			fmt.Fprintln(os.Stderr, "gochecks: modernize:", err)
 			return 2
 		}
 		extra = append(extra, modernizeConflicts(pkgDir)...)
 	}
 
-	// `gocheck fix` implies silent auto-apply for every tool that
+	// `gochecks fix` implies silent auto-apply for every tool that
 	// supports it — force AutoFix on for the subsequent check pass
 	// regardless of the user's config default.
 	fixCfg := cfg

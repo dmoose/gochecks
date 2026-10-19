@@ -1,5 +1,5 @@
 # built binary
-/gocheck
+/gochecks
 
 # go test artifacts
 *.test
@@ -20,4 +20,4 @@ go.work.sum
 .DS_Store
 
 # hook trace log (from HOOKS.md verification snippet)
-/tmp/gocheck-hook.log
+/tmp/gochecks-hook.log

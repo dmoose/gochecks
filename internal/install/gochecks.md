@@ -1,7 +1,7 @@
-# gocheck (installed in this repo)
+# gochecks (installed in this repo)
 
-`gocheck` is wired into Claude Code here as a `PostToolUse` hook.
-Every time Claude Code edits a `.go` file, gocheck runs in the
+`gochecks` is wired into Claude Code here as a `PostToolUse` hook.
+Every time Claude Code edits a `.go` file, gochecks runs in the
 background before the next agent turn and does four things:
 
 1. **Silently auto-applies `gofmt` + `goimports`** — the agent
@@ -30,34 +30,34 @@ self-correction loop. With the hook:
 - On any non-trivial Go repo, this saves 10-50k tokens per
   session and eliminates multiple error-recovery loops.
 
-## Installed by `gocheck install`
+## Installed by `gochecks install`
 
-- `.claude/settings.json` — PostToolUse hook entry (`gocheck hook`)
+- `.claude/settings.json` — PostToolUse hook entry (`gochecks hook`)
   on `Edit|Write`. The hook reads the event from stdin and ignores
   non-Go files itself. Non-destructively merged with any
   pre-existing settings.
 - `.claude/skills/go-current/SKILL.md` — primes Claude to write
   Go 1.26 idioms on the first pass so modernize has less to
   rewrite.
-- `.claude/gocheck.md` — this file.
-- `.gocheck.json` — optional; only if you ran `install --config`.
+- `.claude/gochecks.md` — this file.
+- `.gochecks.json` — optional; only if you ran `install --config`.
 
 ## Get the most out of it
 
 ### 1. Install the optional tools (all probed-for-present)
 
 ```bash
-gocheck doctor --fix
+gochecks doctor --fix
 ```
 
 Installs or updates `goimports`, `staticcheck`, `errcheck`,
 `ineffassign` (and `golangci-lint` when `linters` is on). Each adds
-a bug-detection layer at ~50-200ms per package. Run `gocheck doctor`
+a bug-detection layer at ~50-200ms per package. Run `gochecks doctor`
 again after a Go upgrade: analyzers built against an older Go stop
 reading the new export data, and the hook reports them as a single
 warning until they are rebuilt.
 
-### 2. Drop a `.gocheck.json` at the repo root if you want tuning
+### 2. Drop a `.gochecks.json` at the repo root if you want tuning
 
 ```json
 {
@@ -78,7 +78,7 @@ warning until they are rebuilt.
   when `linters` is also on.
 - `linters: true` — enables the `golangci-lint` umbrella (100+
   linters). Adds ~0.5-2s cold startup. Respects your
-  `.golangci.yml`. When enabled, gocheck takes ownership of
+  `.golangci.yml`. When enabled, gochecks takes ownership of
   `errcheck`/`ineffassign` coverage via the umbrella and skips
   its standalone probes.
 - `exclude` — glob patterns dropped from `--changed` before any
@@ -88,7 +88,7 @@ warning until they are rebuilt.
 
 ### 3. If you enable `linters`, disable `modernize` in `.golangci.yml`
 
-Go 1.26's `go fix` (always on in gocheck) and golangci-lint's
+Go 1.26's `go fix` (always on in gochecks) and golangci-lint's
 `modernize` linter wrap the same analyzers. Enabling both
 double-reports the same diagnostics.
 
@@ -102,48 +102,48 @@ linters:
 ### 4. Verify it's wired
 
 ```bash
-gocheck doctor
-gocheck status
+gochecks doctor
+gochecks status
 ```
 
 `doctor` shows the toolchain, each tool's health, and whether this
 repo's hook is wired. `status` shows the loaded config and the last
 20 hook invocations with duration and exit code. If the hook log stays
 empty after you edit a `.go` file through Claude Code, the hook
-isn't firing — see `HOOKS.md` in the gocheck repo for debug tips.
+isn't firing — see `HOOKS.md` in the gochecks repo for debug tips.
 
 ```bash
-gocheck check --changed path/to/file.go
+gochecks check --changed path/to/file.go
 ```
 
 Dry-run a single file without going through the hook.
 
 ## State and observability
 
-- `~/Library/Caches/gocheck/hook.log` — timestamped record of
+- `~/Library/Caches/gochecks/hook.log` — timestamped record of
   every hook invocation with duration, exit code, and finding
   count. Safe to delete anytime; recreated on next run.
 - Hook exit codes: `0` = clean, or warnings/suggestions delivered
   as `additionalContext`; `2` = at least one error, delivered on
   stderr; `1` = hook misconfigured (shown to the user, not the
-  model). `gocheck check` from the shell keeps 0 / 1 / 2 by
+  model). `gochecks check` from the shell keeps 0 / 1 / 2 by
   highest class.
 
 ## Uninstall
 
 1. Open `.claude/settings.json`, remove the PostToolUse entry
-   whose `command` is `gocheck hook`. Keep other entries.
+   whose `command` is `gochecks hook`. Keep other entries.
 2. Delete `.claude/skills/go-current/` if you don't want the
    priming skill.
-3. Delete this file and `~/Library/Caches/gocheck/` if you want
+3. Delete this file and `~/Library/Caches/gochecks/` if you want
    to leave no trace.
 
-No other state — gocheck doesn't modify `$GOCACHE` or any project
+No other state — gochecks doesn't modify `$GOCACHE` or any project
 file beyond the silent gofmt/goimports rewrites that happen on
 every edit.
 
 ## Upstream
 
-See the gocheck repo for `DESIGN.md` (scope, non-goals,
+See the gochecks repo for `DESIGN.md` (scope, non-goals,
 roadmap) and `HOOKS.md` (full Claude Code integration reference
 including advanced flags and exit-code semantics).

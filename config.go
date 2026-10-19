@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-const configFilename = ".gocheck.json"
+const configFilename = ".gochecks.json"
 
-// Config is the per-repo gocheck configuration. Every field is
+// Config is the per-repo gochecks configuration. Every field is
 // optional; missing fields fall back to defaults. Keep this struct
 // ruthlessly minimal — each field is a compatibility commitment.
 type Config struct {
@@ -30,7 +30,7 @@ type Config struct {
 	Exclude []string `json:"exclude"`
 
 	// AutoFix extends silent apply from formatting to modernize.
-	// When true and check produces no errors or warnings, gocheck
+	// When true and check produces no errors or warnings, gochecks
 	// runs `go fix` modernize on the changed packages, emitting
 	// only the conflicts it couldn't auto-apply. When Linters is
 	// also true, AutoFix additionally enables golangci-lint's
@@ -40,7 +40,7 @@ type Config struct {
 	// Linters enables the optional golangci-lint umbrella pass
 	// during check. Off by default because golangci-lint adds
 	// startup latency; users opt in when they have a configured
-	// `.golangci.yml` in their repo. When enabled, gocheck does
+	// `.golangci.yml` in their repo. When enabled, gochecks does
 	// NOT run errcheck/ineffassign standalone — golangci-lint
 	// owns that coverage to avoid double-reporting. Users should
 	// also disable `modernize` in their `.golangci.yml` since Go
@@ -59,7 +59,7 @@ func defaultConfig() Config {
 	}
 }
 
-// loadConfig walks up from startDir looking for .gocheck.json, stopping
+// loadConfig walks up from startDir looking for .gochecks.json, stopping
 // at the filesystem root. Returns defaults if nothing is found.
 // Errors in an existing config file are surfaced — silent fallback
 // would mask typos and waste debugging cycles.

@@ -30,7 +30,7 @@ func runCheck(args []string) int {
 
 	files, err := resolveChanged(raw)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck:", err)
+		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
 	if len(files) == 0 {
@@ -38,7 +38,7 @@ func runCheck(args []string) int {
 	}
 	cfg, err := loadConfig(filepath.Dir(files[0]))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck: config:", err)
+		fmt.Fprintln(os.Stderr, "gochecks: config:", err)
 		return 2
 	}
 	files = cfg.applyExclude(files)
@@ -51,7 +51,7 @@ func runCheck(args []string) int {
 func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
 	findings, err := check(files, noApply, cfg)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck:", err)
+		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
 	invocationFindings = len(findings)
@@ -273,7 +273,7 @@ func exitFor(findings []Finding) int {
 	return code
 }
 
-const goimportsMissingNote = "gocheck: goimports not installed; skipping (go install golang.org/x/tools/cmd/goimports@latest)"
+const goimportsMissingNote = "gochecks: goimports not installed; skipping (go install golang.org/x/tools/cmd/goimports@latest)"
 
 func splitList(s string) []string {
 	if s == "" {

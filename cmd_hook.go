@@ -46,7 +46,7 @@ func runHook(args []string) int {
 func hook(in io.Reader, out, errw io.Writer) int {
 	var ev hookInput
 	if err := json.NewDecoder(in).Decode(&ev); err != nil {
-		_, _ = fmt.Fprintln(errw, "gocheck hook: bad input:", err)
+		_, _ = fmt.Fprintln(errw, "gochecks hook: bad input:", err)
 		return 1
 	}
 	if ev.ToolInput.FilePath == "" {
@@ -56,7 +56,7 @@ func hook(in io.Reader, out, errw io.Writer) int {
 
 	files, err := resolveChanged([]string{ev.ToolInput.FilePath})
 	if err != nil {
-		_, _ = fmt.Fprintln(errw, "gocheck hook:", err)
+		_, _ = fmt.Fprintln(errw, "gochecks hook:", err)
 		return 1
 	}
 	if len(files) == 0 {
@@ -64,7 +64,7 @@ func hook(in io.Reader, out, errw io.Writer) int {
 	}
 	cfg, err := loadConfig(filepath.Dir(files[0]))
 	if err != nil {
-		_, _ = fmt.Fprintln(errw, "gocheck hook: config:", err)
+		_, _ = fmt.Fprintln(errw, "gochecks hook: config:", err)
 		return 1
 	}
 	files = cfg.applyExclude(files)
@@ -74,7 +74,7 @@ func hook(in io.Reader, out, errw io.Writer) int {
 
 	findings, err := check(files, false, cfg)
 	if err != nil {
-		_, _ = fmt.Fprintln(errw, "gocheck hook:", err)
+		_, _ = fmt.Fprintln(errw, "gochecks hook:", err)
 		return 1
 	}
 	invocationFindings = len(findings)
@@ -98,7 +98,7 @@ func hook(in io.Reader, out, errw io.Writer) int {
 // relative to the session cwd to keep the token count down.
 func hookReport(findings []Finding, cwd string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "gocheck: %d finding(s)\n", len(findings))
+	fmt.Fprintf(&b, "gochecks: %d finding(s)\n", len(findings))
 	for _, f := range findings {
 		path := f.File
 		if cwd != "" {

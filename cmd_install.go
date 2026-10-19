@@ -13,14 +13,14 @@ import (
 //go:embed internal/install/go-current.SKILL.md
 var goCurrentSkill string
 
-//go:embed internal/install/gocheck.md
-var gocheckDoc string
+//go:embed internal/install/gochecks.md
+var gochecksDoc string
 
 // hookCommand is what gets wired into .claude/settings.json. The hook
 // subcommand reads the PostToolUse event from stdin and ignores
-// non-Go files itself, so no shell glue is needed. Bare `gocheck` so
+// non-Go files itself, so no shell glue is needed. Bare `gochecks` so
 // the user's PATH is the single source of truth.
-const hookCommand = `gocheck hook`
+const hookCommand = `gochecks hook`
 
 // hookMatcher names the file-editing tools. NotebookEdit is left out
 // on purpose; a Go file in a notebook is not a thing we check.
@@ -40,46 +40,46 @@ func runInstall(args []string) int {
 	)
 	fs.StringVar(&dir, "dir", ".", "target repo root")
 	fs.BoolVar(&force, "force", false, "overwrite existing files")
-	fs.BoolVar(&upgrade, "upgrade", false, "refresh gocheck-owned files (skill, hook block, doc) in place")
+	fs.BoolVar(&upgrade, "upgrade", false, "refresh gochecks-owned files (skill, hook block, doc) in place")
 	fs.BoolVar(&noHook, "no-hook", false, "skip .claude/settings.json wiring")
 	fs.BoolVar(&noSkill, "no-skill", false, "skip .claude/skills/go-current installation")
-	fs.BoolVar(&noDoc, "no-doc", false, "skip .claude/gocheck.md doc drop")
-	fs.BoolVar(&config, "config", false, "also scaffold a default .gocheck.json")
+	fs.BoolVar(&noDoc, "no-doc", false, "skip .claude/gochecks.md doc drop")
+	fs.BoolVar(&config, "config", false, "also scaffold a default .gochecks.json")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
 	root, err := filepath.Abs(dir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gocheck: install:", err)
+		fmt.Fprintln(os.Stderr, "gochecks: install:", err)
 		return 2
 	}
 
 	if !noHook {
 		if err := installHook(root, force || upgrade); err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck: install hook:", err)
+			fmt.Fprintln(os.Stderr, "gochecks: install hook:", err)
 			return 2
 		}
 	}
 	if !noSkill {
 		if err := installSkill(root, force || upgrade); err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck: install skill:", err)
+			fmt.Fprintln(os.Stderr, "gochecks: install skill:", err)
 			return 2
 		}
 	}
 	if !noDoc {
 		if err := installDoc(root, force || upgrade); err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck: install doc:", err)
+			fmt.Fprintln(os.Stderr, "gochecks: install doc:", err)
 			return 2
 		}
 	}
 	if config {
 		if err := installConfig(root, force); err != nil {
-			fmt.Fprintln(os.Stderr, "gocheck: install config:", err)
+			fmt.Fprintln(os.Stderr, "gochecks: install config:", err)
 			return 2
 		}
 	}
-	fmt.Println("gocheck: installed into", root)
+	fmt.Println("gochecks: installed into", root)
 	return 0
 }
 
@@ -114,12 +114,12 @@ func installHook(root string, overwrite bool) error {
 	}
 	post, _ := hooks["PostToolUse"].([]any)
 
-	// Replace any prior gocheck entry (matched by substring in the
+	// Replace any prior gochecks entry (matched by substring in the
 	// command) if --force/--upgrade; otherwise skip if already present.
 	idx := findGocheckHook(post)
 	if idx >= 0 {
 		if !overwrite {
-			fmt.Printf("gocheck: hook already present in %s (use --force or --upgrade to replace)\n", settingsPath)
+			fmt.Printf("gochecks: hook already present in %s (use --force or --upgrade to replace)\n", settingsPath)
 			return nil
 		}
 		post[idx] = hook
@@ -152,7 +152,9 @@ func findGocheckHook(entries []any) int {
 }
 
 func containsGocheck(s string) bool {
-	for _, sub := range []string{"gocheck hook", "gocheck check", "gocheck fix"} {
+	// The gocheck names are the pre-rename spelling, so --upgrade
+	// replaces entries written by older installs.
+	for _, sub := range []string{"gochecks hook", "gochecks check", "gochecks fix", "gocheck hook", "gocheck check", "gocheck fix"} {
 		if strings.Contains(s, sub) {
 			return true
 		}
@@ -167,7 +169,7 @@ func installSkill(root string, overwrite bool) error {
 	}
 	path := filepath.Join(skillDir, "SKILL.md")
 	if _, err := os.Stat(path); err == nil && !overwrite {
-		fmt.Printf("gocheck: skill already present at %s (use --force or --upgrade to replace)\n", path)
+		fmt.Printf("gochecks: skill already present at %s (use --force or --upgrade to replace)\n", path)
 		return nil
 	}
 	return os.WriteFile(path, []byte(goCurrentSkill), 0o644)
@@ -178,18 +180,18 @@ func installDoc(root string, overwrite bool) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	path := filepath.Join(dir, "gocheck.md")
+	path := filepath.Join(dir, "gochecks.md")
 	if _, err := os.Stat(path); err == nil && !overwrite {
-		fmt.Printf("gocheck: doc already present at %s (use --force or --upgrade to replace)\n", path)
+		fmt.Printf("gochecks: doc already present at %s (use --force or --upgrade to replace)\n", path)
 		return nil
 	}
-	return os.WriteFile(path, []byte(gocheckDoc), 0o644)
+	return os.WriteFile(path, []byte(gochecksDoc), 0o644)
 }
 
 func installConfig(root string, overwrite bool) error {
 	path := filepath.Join(root, configFilename)
 	if _, err := os.Stat(path); err == nil && !overwrite {
-		fmt.Printf("gocheck: %s already present (use --force to replace)\n", path)
+		fmt.Printf("gochecks: %s already present (use --force to replace)\n", path)
 		return nil
 	}
 	cfg := defaultConfig()

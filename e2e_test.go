@@ -20,7 +20,7 @@ func hasGo(t *testing.T) {
 
 // isolateHome redirects os.UserCacheDir (and loadConfig's upward walk)
 // so the e2e fixtures never touch the real user cache or see a stray
-// .gocheck.json somewhere above /tmp.
+// .gochecks.json somewhere above /tmp.
 func isolateHome(t *testing.T) {
 	t.Helper()
 	h := t.TempDir()
@@ -245,9 +245,9 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 	hooks, _ := settings["hooks"].(map[string]any)
 	post, _ := hooks["PostToolUse"].([]any)
 	if len(post) != 2 {
-		t.Fatalf("expected 2 PostToolUse entries (existing + gocheck); got %d: %+v", len(post), post)
+		t.Fatalf("expected 2 PostToolUse entries (existing + gochecks); got %d: %+v", len(post), post)
 	}
-	// The gocheck entry must be present with the stdin-driven command
+	// The gochecks entry must be present with the stdin-driven command
 	// and a matcher naming the current editing tools.
 	foundGocheck := false
 	for _, e := range post {
@@ -264,7 +264,7 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 		}
 	}
 	if !foundGocheck {
-		t.Errorf("gocheck hook entry missing from merged settings: %s", data)
+		t.Errorf("gochecks hook entry missing from merged settings: %s", data)
 	}
 
 	skillPath := filepath.Join(dir, ".claude", "skills", "go-current", "SKILL.md")
@@ -274,14 +274,14 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 		t.Errorf("SKILL.md is empty")
 	}
 
-	docPath := filepath.Join(dir, ".claude", "gocheck.md")
+	docPath := filepath.Join(dir, ".claude", "gochecks.md")
 	if fi, err := os.Stat(docPath); err != nil {
-		t.Fatalf("gocheck.md missing after install: %v", err)
+		t.Fatalf("gochecks.md missing after install: %v", err)
 	} else if fi.Size() == 0 {
-		t.Errorf("gocheck.md is empty")
+		t.Errorf("gochecks.md is empty")
 	}
 
-	// Re-running install is idempotent: no error, no duplicate gocheck entry.
+	// Re-running install is idempotent: no error, no duplicate gochecks entry.
 	_ = captureStdout(t, func() {
 		runInstall([]string{"--dir", dir})
 	})
