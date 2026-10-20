@@ -37,7 +37,7 @@ self-correction loop. With the hook:
   non-Go files itself. Non-destructively merged with any
   pre-existing settings.
 - `.claude/skills/go-current/SKILL.md` — primes Claude to write
-  Go 1.26 idioms on the first pass so modernize has less to
+  Go 1.27 idioms on the first pass so modernize has less to
   rewrite.
 - `.claude/gochecks.md` — this file.
 - `.gochecks.json` — optional; only if you ran `install --config`.
@@ -74,7 +74,7 @@ warning until they are rebuilt.
   every edit. Leave off if your tests have side effects or slow
   setup.
 - `auto_fix: true` — extends silent-apply from gofmt/goimports to
-  Go 1.26's `go fix` modernizers, and to `golangci-lint --fix`
+  the `go fix` modernizers, and to `golangci-lint --fix`
   when `linters` is also on.
 - `linters: true` — enables the `golangci-lint` umbrella (100+
   linters). Adds ~0.5-2s cold startup. Respects your
@@ -88,7 +88,7 @@ warning until they are rebuilt.
 
 ### 3. If you enable `linters`, disable `modernize` in `.golangci.yml`
 
-Go 1.26's `go fix` (always on in gochecks) and golangci-lint's
+`go fix` modernize (always on in gochecks) and golangci-lint's
 `modernize` linter wrap the same analyzers. Enabling both
 double-reports the same diagnostics.
 

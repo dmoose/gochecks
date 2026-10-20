@@ -1,172 +1,183 @@
 ---
 name: go-current
-description: Modern Go 1.26 idioms — write these on the first pass so modernize has less to rewrite
+description: Modern Go 1.27 idioms — write these on the first pass so modernize has less to rewrite
 paths: "**/*.go"
 ---
 
 # go-current
 
-You are writing Go against the **1.26 toolchain**. Use modern idioms on
-the **first pass**. Every pattern below exists because `go fix
-modernize` will otherwise rewrite your code — wasting a turn and
+You are writing Go against the **1.27 toolchain**. Use modern idioms on
+the **first pass**. Every pattern below exists because `go fix`
+modernize will otherwise rewrite your code — wasting a turn and
 sometimes creating conflicts with other modernize passes.
+
+Keep the module's `go` line at the toolchain you target. `go test` now
+runs vet's `stdversion` check, which flags standard library symbols
+newer than that line.
 
 ## Loops
 
 - `for i := range N` for pure counting — **not** `for i := 0; i < N; i++`.
-  Only applies when the counter is purely ordinal; if you need a
-  non-zero start, step ≠ 1, or to mutate `i` inside the loop, the
-  classic form is still correct.
+  Only when the counter is purely ordinal; a non-zero start, step ≠ 1,
+  or mutating `i` inside the loop keeps the classic form.
 - `for _, v := range slice` — do not index if you don't need the index.
+- `for _, v := range slices.Backward(xs)` — **not** a hand-written
+  descending index loop.
 - `for k, v := range map` — map iteration is unordered; never rely on order.
 
 ## slices package
 
-- `slices.Contains(xs, x)` — **not** a manual loop with `==`.
-- `slices.Index(xs, x)` / `slices.IndexFunc`.
-- `slices.Sort`, `slices.SortFunc`, `slices.SortStableFunc`.
-- `slices.Equal`, `slices.Clone`, `slices.Concat`.
+- `slices.Contains(xs, x)` / `slices.ContainsFunc` — **not** a manual loop.
+- `slices.Index`, `slices.IndexFunc`.
+- `slices.Sort`, `slices.SortFunc`, `slices.SortStableFunc` — **not**
+  `sort.Slice` for ordered element types.
+- `slices.Equal`, `slices.Clone`, `slices.Concat`, `slices.Clip`.
 - `slices.Delete`, `slices.Insert`, `slices.Replace`.
 - `slices.Min`, `slices.Max`, `slices.MinFunc`, `slices.MaxFunc`.
+- `slices.Collect(seq)`, `slices.Sorted(seq)` to materialize an iterator.
 
 ## maps package
 
 - `maps.Clone(m)` — **not** a manual copy loop.
-- `maps.Keys(m)` / `maps.Values(m)` since Go 1.23 return **`iter.Seq`**,
-  not slices (this differs from the old `golang.org/x/exp/maps`
-  versions). Range them directly: `for k := range maps.Keys(m)`. Use
-  `slices.Collect(maps.Keys(m))` only when you genuinely need a slice.
-- `maps.Equal(a, b)`, `maps.Copy(dst, src)`.
+- `maps.Keys(m)` / `maps.Values(m)` return **`iter.Seq`**, not slices.
+  Range them directly; `slices.Collect(maps.Keys(m))` only when a
+  slice is genuinely needed, `slices.Sorted(maps.Keys(m))` for order.
+- `maps.Equal(a, b)`, `maps.Copy(dst, src)`, `maps.Collect(seq2)`.
 
-## Strings & bytes — splitting, cutting, appending
+## Strings and bytes
 
-- `strings.SplitSeq(s, sep)` — range-style, **not** `strings.Split`
-  then range. Same for `bytes.SplitSeq`.
-- `strings.FieldsSeq(s)` / `bytes.FieldsSeq` for whitespace splitting.
-- **`strings.Cut(s, sep)`** — returns `(before, after, found)`.
-  Use it instead of `strings.Index` + slicing for the common
-  "split on first occurrence" pattern. Same for `strings.CutPrefix`
-  and `strings.CutSuffix`.
-- **`fmt.Appendf(nil, ...)`** — use this instead of
-  `[]byte(fmt.Sprintf(...))`. Same result, one less allocation.
-  Same applies to `fmt.Appendln`, `fmt.Append`.
+- `strings.SplitSeq(s, sep)` / `strings.FieldsSeq(s)` when ranging —
+  **not** `strings.Split` then range. Same for `bytes`.
+- `strings.Cut(s, sep)` → `(before, after, found)` — **not**
+  `strings.Index` + slicing. `strings.CutPrefix` / `CutSuffix` — **not**
+  `HasPrefix` + `TrimPrefix`. `strings.CutLast` (1.27) — **not**
+  `LastIndex` + slicing.
+- `strings.Builder` for building in a loop — **not** `s += piece`.
 
 ## Builtins
 
-- `min(a, b, c)` / `max(a, b, c)` — variadic, for ordered types. Prefer
-  these over `if/else` chains or `math.Min`/`math.Max` (the latter are
-  float64-only and slower for ordered types).
+- `min(a, b, c)` / `max(a, b, c)` — **not** if/else chains or
+  `math.Min`/`math.Max` (float64-only).
 - `clear(m)` — clears a map or zeros a slice in place.
+- `new(expr)` (1.26) — `new(int64(42))` allocates and initializes in one
+  step. **Not** `x := int64(42); p := &x`.
+
+## Generics (1.27)
+
+- Methods may declare their own type parameters:
+  `func (r *Rand) N[I intType](n I) I`. Interface methods cannot, and a
+  generic method cannot satisfy an interface method.
+- Composite literal keys may be field selectors, so a promoted field is
+  set directly: `Outer{Inner.X: 1}` — **not** `Outer{Inner: Inner{X: 1}}`.
+- `interface{}` → `any`.
 
 ## Defaults and comparisons
 
-- `cmp.Or(a, b, c)` — returns the first non-zero value. Use this for
-  default fallback chains instead of nested `if v == ""` ladders.
-- `cmp.Compare(a, b)` — three-way comparison returning `-1 / 0 / 1`.
-  Ideal for `slices.SortFunc` comparators.
+- `cmp.Or(a, b, c)` — first non-zero value, for default chains.
+- `cmp.Compare(a, b)` — three-way comparison for `slices.SortFunc`.
 
 ## Errors
 
-- `errors.Join(errs...)` — multi-error wrap; do not invent your own.
-- `errors.Is(err, target)` / `errors.As(err, &v)` — never compare with `==`
-  except for sentinel values you defined.
-- `fmt.Errorf("context: %w", err)` — the standard wrap form.
+- `errors.AsType[*PathError](err)` (1.26) → `(target, ok)` — **not**
+  `errors.As(err, &target)`.
+- `errors.Is` / `errors.AsType` — never `==` except for your own sentinels.
+- `errors.Join(errs...)` for multi-error; do not invent your own.
+- `fmt.Errorf("context: %w", err)` is the wrap form. Do not `%w` a
+  `*E` when `E` itself implements `error`; vet now flags it because
+  `errors.Is`/`AsType` will not match.
 
-## One-time initialization
+## Concurrency
 
-- `sync.OnceFunc(func() { ... })` — returns a func that runs its body
-  exactly once.
-- `sync.OnceValue(func() T { ... })` / `sync.OnceValues(func() (T, U))` —
-  same, but the result is memoized and returned on every call. Use
-  these instead of the `sync.Once` + package-level var + init-guard
-  pattern.
+- `wg.Go(func() { ... })` (1.25) — **not** `wg.Add(1); go func() {
+  defer wg.Done(); ... }()`.
+- `sync.OnceFunc`, `sync.OnceValue`, `sync.OnceValues` — **not**
+  `sync.Once` + package var + guard.
+- `atomic.Int64`, `atomic.Bool`, `atomic.Pointer[T]` — **not**
+  `atomic.LoadInt64(&x)` on raw ints.
+- `context.WithCancelCause`, `context.AfterFunc` when they fit.
 
-## Atomic primitives
+## Reflection
 
-- `atomic.Int64`, `atomic.Int32`, `atomic.Uint64`, `atomic.Bool`,
-  `atomic.Pointer[T]` — generic, type-safe atomic types. Use these
-  instead of the `atomic.LoadInt64(&x)` / `atomic.StoreInt64(&x, v)`
-  free-function style on raw ints. Same behavior, far less noise.
+- `reflect.TypeFor[T]()` — **not** `reflect.TypeOf((*T)(nil)).Elem()`.
+- `reflect.TypeAssert[T](v)` (1.25) — **not** `v.Interface().(T)`.
+
+## JSON
+
+- `omitzero` — **not** `omitempty` for struct and `time.Time` fields;
+  `omitempty` never omits them.
+- `encoding/json/v2` and `encoding/json/jsontext` are available
+  (1.27), and `encoding/json` now runs on the v2 engine. New code may
+  use v2 (`json.MarshalWrite`, `json.UnmarshalRead`); the v1 API is
+  still fine.
+
+## Random numbers
+
+- `math/rand/v2`: `rand.IntN(n)`, `rand.N(d)` — **not** `math/rand`.
+  No seeding.
 
 ## Logging
 
-- `log/slog` for anything structured.
-- `slog.Default().Info(...)` is fine; construct a custom handler only
-  when you need it.
-- Pass key-value pairs (`slog.Info("msg", "key", value)` or use
-  `slog.Attr` helpers) — **do not** hand-concat into the message string.
-- Never `fmt.Println` for real logging.
+- `log/slog` for anything structured. Key-value pairs
+  (`slog.Info("msg", "key", value)`) — **do not** concat into the
+  message. Never `fmt.Println` for real logging.
 
 ## Context
 
 - Any function that does I/O or calls a context-taking API takes
-  `ctx context.Context` as the first parameter.
-- Do not stash contexts on structs (outside request-scoped types).
+  `ctx context.Context` first. Do not stash contexts on structs
+  outside request-scoped types.
 
 ## Removed / replaced
 
-- `io/ioutil` is gone — use `io` and `os` directly
-  (`os.ReadFile`, `os.WriteFile`, `io.ReadAll`, `os.CreateTemp`).
-- `rand.Seed` is deprecated — the global source auto-seeds since 1.20.
-- `interface{}` → `any` (alias since 1.18; use `any`).
+- `io/ioutil` is gone — `os.ReadFile`, `os.WriteFile`, `io.ReadAll`,
+  `os.CreateTemp`, `os.MkdirTemp`.
+- `rand.Seed` is dead; so is hand-rolled seeding.
+- `//go:fix inline` on a thin wrapper tells modernize to inline its
+  callers — use it instead of a manual rename campaign.
 
-## Iterators (1.23+)
+## Iterators
 
-- Functions that stream values should return `iter.Seq[T]` or
-  `iter.Seq2[K, V]`.
-- Consume with `for v := range seq { ... }`.
-- Return an iterator instead of a slice when the caller might stop
-  early.
-- `slices.Collect(seq)` / `maps.Collect(seq2)` materialize when
-  needed.
+- Stream with `iter.Seq[T]` / `iter.Seq2[K, V]`; consume with `for v
+  := range seq`. Return an iterator when the caller may stop early;
+  `slices.Collect` / `maps.Collect` when a value is needed.
+- Prefer a type's `All()` / `Keys()` style iterator over `Len()`/`At(i)`
+  loops when the API offers one.
 
 ## Embedding
 
-- `//go:embed file.txt` — use this for static assets instead of
-  vendoring content as Go string literals.
-- Embed targets must be in or below the source file's directory.
+- `//go:embed file.txt` for static assets — **not** string literals.
+  Targets must be in or below the source file's directory.
 
 ## Testing
 
-- `t.Cleanup(fn)` — **not** deferred cleanup that might be skipped on
-  early return.
-- `t.TempDir()` — **not** `os.MkdirTemp` inside tests (auto-cleaned).
-- `t.Setenv(k, v)` — **not** `os.Setenv` (auto-reverted).
-- `t.Context()` — **not** `context.Background()` in tests that wire
-  context through; it's canceled automatically on test end.
-- Subtests with `t.Run(name, func(t *testing.T) { ... })` for table
-  tests.
-
-## Go 1.26 specific
-
-- **`new(expr)`** — Go 1.26 lets `new` take an initializer expression.
-  `new(int64(42))` allocates and returns `*int64` pointing to `42`.
-  Prefer this over the two-step `x := int64(42); p := &x` or
-  `p := new(int64); *p = 42` patterns.
-- **`//go:fix inline`** — directive on a function declaration that
-  tells modernize "callers of this function should inline the call."
-  Useful for deprecating a thin wrapper without the churn of a manual
-  rename campaign. See `go help fix`.
+- `t.Cleanup(fn)` — **not** deferred cleanup that an early return skips.
+- `t.TempDir()`, `t.Setenv(k, v)`, `t.Chdir(dir)` — **not** the `os`
+  calls; all revert automatically.
+- `t.Context()` — **not** `context.Background()`; canceled at test end.
+- `t.ArtifactDir()` (1.26) for files worth keeping under `go test
+  -artifacts`.
+- `testing/synctest.Test` for code that sleeps or waits on timers; it
+  runs under a fake clock with `synctest.Wait` / `synctest.Sleep`.
+- Table tests as `t.Run(name, func(t *testing.T) { ... })` subtests.
 
 ## What modernize cannot rewrite for you
 
 The analyzer gives up when two modernizations overlap (e.g. rewriting
 a loop to `slices.Contains` conflicts with rewriting `strings.Split`
-inside the same loop to `SplitSeq`). When that happens, `gochecks fix`
+inside the same loop to `SplitSeq`). When that happens, `gochecks`
 emits a `suggestion`-class finding pointing at the package. Resolve
 by hand — pick one transformation, apply, re-run.
 
 ## Why this matters here
 
-`gochecks` hooks fire after every edit. Modern idioms on the first
-pass means:
+`gochecks` runs after every edit. Modern idioms on the first pass mean:
 
-1. `gofmt` + `goimports` touch nothing — less silent rewrite noise.
-2. `go fix modernize` (on `gochecks fix`, or silently on every hook
-   fire if `auto_fix: true`) applies zero changes instead of
-   iterating to a fixed point.
+1. `gofmt` + `goimports` touch nothing — no silent rewrite noise.
+2. `go fix` modernize (on `gochecks fix`, or on every edit with
+   `auto_fix: true`) applies zero changes instead of iterating to a
+   fixed point.
 3. `go vet` and `staticcheck` have fewer style-adjacent hints to
-   emit, so their output stays focused on actual bugs.
+   emit, so their output stays on actual bugs.
 
 Cleaner first draft = tighter hook output = more context for the
 actual problem you're solving.

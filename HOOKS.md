@@ -120,7 +120,7 @@ When `linters: true` and `golangci-lint` is on PATH:
   `golangci-lint run --fix` to silently apply autofix-capable
   diagnostics before reporting anything remaining. `gochecks fix`
   implies `auto_fix` and so always does this.
-- **Disable `modernize` in your `.golangci.yml`**: Go 1.26's
+- **Disable `modernize` in your `.golangci.yml`**: `go fix` (Go 1.26+)
   `go fix` (always on in gochecks) already runs the same modernizer
   suite. Leaving both enabled double-reports the same diagnostics.
 
