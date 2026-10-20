@@ -294,3 +294,15 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 		t.Errorf("second install duplicated entries: got %d, want 2", len(post2))
 	}
 }
+
+// TestCheckWithoutFilesIsAnError: a bare `check` or `fix` is a usage
+// mistake, not a clean run.
+func TestCheckWithoutFilesIsAnError(t *testing.T) {
+	isolateHome(t)
+	if code := runCheck(nil); code != 2 {
+		t.Errorf("check with no files: exit %d, want 2", code)
+	}
+	if code := runFix(nil); code != 2 {
+		t.Errorf("fix with no files: exit %d, want 2", code)
+	}
+}

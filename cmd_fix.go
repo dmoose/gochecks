@@ -22,6 +22,10 @@ func runFix(args []string) int {
 
 	raw := splitList(changedFlag)
 	raw = append(raw, fs.Args()...)
+	if len(raw) == 0 {
+		fmt.Fprintln(os.Stderr, "gochecks fix: no files given (see gochecks help)")
+		return 2
+	}
 
 	files, err := resolveChanged(raw)
 	if err != nil {
