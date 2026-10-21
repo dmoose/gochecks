@@ -42,6 +42,15 @@ returns a tight summary of what needs attention.
 - Not a language server
 - Not a reimplementation of analysis passes
 
+## Install
+
+```bash
+go install github.com/dmoose/gochecks@latest
+```
+
+Release archives for macOS, Linux and Windows are on the
+[releases page](https://github.com/dmoose/gochecks/releases).
+
 ## License
 
-MIT.
+[MIT](./LICENSE).
