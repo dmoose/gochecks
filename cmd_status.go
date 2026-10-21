@@ -18,7 +18,7 @@ func runStatus(args []string) int {
 		return 2
 	}
 
-	fmt.Println("gochecks", version)
+	fmt.Println("gochecks", versionString())
 	fmt.Println()
 
 	fmt.Println("state dir:")

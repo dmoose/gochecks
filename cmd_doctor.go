@@ -61,7 +61,7 @@ func runDoctor(args []string) int {
 	cfg, _ := loadConfig(cwd)
 
 	goVer, goPath := goToolchain()
-	fmt.Printf("gochecks %s (%s)\n\n", version, selfPath())
+	fmt.Printf("gochecks %s (%s)\n\n", versionString(), selfPath())
 
 	var latestGo string
 	if !offline {

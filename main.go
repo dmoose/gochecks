@@ -3,10 +3,24 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
 )
 
-const version = "0.7.0-dev"
+// version is set by the release build (-X main.version). A `go install`
+// build reports the module version from its build info instead.
+var version = "dev"
+
+func versionString() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return strings.TrimPrefix(bi.Main.Version, "v")
+	}
+	return version
+}
 
 func main() {
 	start := time.Now()
@@ -36,7 +50,7 @@ func dispatch(args []string) int {
 	case "doctor":
 		return runDoctor(args[1:])
 	case "version", "--version", "-v":
-		fmt.Println("gochecks", version)
+		fmt.Println("gochecks", versionString())
 		return 0
 	case "help", "--help", "-h":
 		usage(os.Stdout)
