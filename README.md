@@ -45,13 +45,16 @@ version and health; `doctor --fix` installs or updates them.
 | Command | |
 |---|---|
 | `hook` | PostToolUse entry point; reads the event from stdin |
-| `check [files]` | format, build, vet, analyzers; exit 0/1/2 by highest class |
-| `fix [files]` | `check` plus `go fix` modernize |
+| `check [files]` | format, build, vet, analyzers; exit 0, 1 or 2 by highest class; `--no-apply` reports formatting instead |
+| `fix [files]` | `check` plus `go fix` modernize first |
 | `show file:line` | source context and vet findings at a position |
-| `doctor [--fix]` | toolchain and tool health |
+| `doctor [--fix]` | toolchain and tool health; `--fix` installs or updates |
 | `status` | config in effect and the hook log tail |
-| `install` | wire a repo; `--upgrade` refreshes what install wrote; `--lint-config` adds the profile as `.golangci.yml` |
+| `install` | wire a repo; `--upgrade` refreshes what install wrote; `--config` adds `.gochecks.json`; `--lint-config` adds the profile as `.golangci.yml`, never overwriting one |
 | `lint-config` | print the embedded golangci-lint profile |
+| `version` | version, from the release build or the module |
+
+`gochecks help` carries the same list with the flags.
 
 ## Configuration
 

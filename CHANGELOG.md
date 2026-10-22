@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 (2026-10-22)
 
 - golangci-lint runs whenever installed, with the repo's `.golangci.yml`
   or the profile embedded in gochecks; idiom linters report as

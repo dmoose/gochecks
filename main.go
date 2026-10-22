@@ -76,39 +76,37 @@ func usage(w *os.File) {
 	_, _ = fmt.Fprintln(w, `gochecks: Go toolchain checks for Claude Code hooks
 
 Usage:
-  gochecks check [flags] [--changed "<file>..."] [file...]
-  gochecks fix   [flags] [--changed "<file>..."] [file...]
-  gochecks show    [--context N] <file:line>
   gochecks hook
+  gochecks check  [--changed "<file>..."] [--no-apply] [--text] [file...]
+  gochecks fix    [--changed "<file>..."] [--text] [file...]
+  gochecks show   [--context N] <file:line>
+  gochecks doctor [--fix] [--offline]
   gochecks status
-  gochecks doctor  [--fix] [--offline]
-  gochecks install [--dir .] [--force] [--upgrade] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
+  gochecks install [--dir .] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
   gochecks lint-config
   gochecks version
-  gochecks help
 
-Flags for 'check':
-  --changed <list>   whitespace- or comma-separated list of changed files
-  --no-apply         don't auto-fix; report formatting as suggestions
-  --text             human-readable output (default: JSON lines)
+hook         Claude Code PostToolUse entry point. Reads the event from stdin
+             and checks the edited Go file. Errors go to stderr with exit 2;
+             warnings and suggestions return as additionalContext.
+check        Formats with gofumpt (or gofmt) and goimports, then runs go
+             build, go vet and the installed analyzers (staticcheck,
+             errcheck, ineffassign, golangci-lint) on the changed packages.
+             Findings outside the changed files are dropped. Exit 0, 1 or 2
+             by highest class. --no-apply reports formatting instead.
+fix          check, plus go fix modernize on the changed packages first.
+show         Source context and vet findings at file:line.
+doctor       Go toolchain and each tool: installed, built against the
+             current toolchain, latest release; the repo's hook wiring.
+             --fix installs or updates.
+status       Config in effect and the hook log tail.
+install      Wire a repo: PostToolUse hook in .claude/settings.json, the
+             go-current skill, .claude/gochecks.md. --upgrade refreshes
+             those; --config adds .gochecks.json; --lint-config adds the
+             profile as .golangci.yml, never overwriting one.
+lint-config  Print the golangci-lint profile used for repos without one.
 
-Flags for 'fix':
-  --changed <list>   whitespace- or comma-separated list of changed files
-  --text             human-readable output (default: JSON lines)
-
-'check' silently applies gofmt + goimports, then runs analyzers.
-'fix'   additionally runs 'go fix' modernize on the changed packages
-        before re-checking.
-
-'doctor' checks the Go toolchain and every tool gochecks drives: present,
-        built against the current toolchain, current with its latest
-        release, and the repo's hook wiring. --fix runs the installs.
-'lint-config' prints the golangci-lint profile gochecks uses for repos
-        without a .golangci.yml; 'install --lint-config' writes it.
-'hook'  reads a Claude Code PostToolUse event from stdin and checks the
-        edited file. Errors go to stderr with exit 2; warnings and
-        suggestions return as additionalContext. Wired by 'install'.
-
+Output is JSON lines by default; --text for one finding per line.
 Positional file args are equivalent to --changed entries.
 
 Config: .gochecks.json at the repo root (test, test_timeout, auto_fix,
