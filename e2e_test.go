@@ -18,9 +18,8 @@ func hasGo(t *testing.T) {
 	}
 }
 
-// isolateHome redirects os.UserCacheDir (and loadConfig's upward walk)
-// so the e2e fixtures never touch the real user cache or see a stray
-// .gochecks.json somewhere above /tmp.
+// isolateHome keeps fixtures away from the real cache dir and any
+// .gochecks.json above the temp dir.
 func isolateHome(t *testing.T) {
 	t.Helper()
 	h := t.TempDir()
@@ -83,9 +82,6 @@ func parseJSONL(t *testing.T, s string) []Finding {
 
 const fixtureGoMod = "module fixture\n\ngo 1.26\n"
 
-// TestE2ECheckReportsVetError covers the full check pipeline on a
-// package with a known vet error: findings surface, exit code is 2,
-// the finding is attributed to the right file/tool/class.
 func TestE2ECheckReportsVetError(t *testing.T) {
 	hasGo(t)
 	isolateHome(t)
@@ -130,10 +126,7 @@ func Bad() {
 	}
 }
 
-// TestE2ECheckScopeFiltersSiblingFiles exercises the --changed scope
-// filter: a vet issue lives in sibling.go but only clean.go is in
-// scope, so the finding must be suppressed even though the package
-// run sees it.
+// The vet issue is in sibling.go; only clean.go is in scope.
 func TestE2ECheckScopeFiltersSiblingFiles(t *testing.T) {
 	hasGo(t)
 	isolateHome(t)
@@ -167,8 +160,6 @@ func Sibling() {
 	}
 }
 
-// TestE2EFixAppliesModernize proves the fix subcommand actually
-// rewrites source: a classic counter-loop should become a range loop.
 func TestE2EFixAppliesModernize(t *testing.T) {
 	hasGo(t)
 	isolateHome(t)
@@ -205,8 +196,7 @@ func Sum(xs []int) int {
 	}
 }
 
-// TestE2EInstallRoundTrip walks the install path: empty dir → hook
-// and skill land; existing settings.json → merge without clobbering
+// Install into a dir with an existing settings.json must keep the
 // unrelated keys.
 func TestE2EInstallRoundTrip(t *testing.T) {
 	dir := t.TempDir()
@@ -247,8 +237,6 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 	if len(post) != 2 {
 		t.Fatalf("expected 2 PostToolUse entries (existing + gochecks); got %d: %+v", len(post), post)
 	}
-	// The gochecks entry must be present with the stdin-driven command
-	// and a matcher naming the current editing tools.
 	foundGocheck := false
 	for _, e := range post {
 		m, _ := e.(map[string]any)
@@ -281,7 +269,7 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 		t.Errorf("gochecks.md is empty")
 	}
 
-	// Re-running install is idempotent: no error, no duplicate gochecks entry.
+	// Re-running install adds nothing.
 	_ = captureStdout(t, func() {
 		runInstall([]string{"--dir", dir})
 	})
@@ -295,8 +283,6 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 	}
 }
 
-// TestCheckWithoutFilesIsAnError: a bare `check` or `fix` is a usage
-// mistake, not a clean run.
 func TestCheckWithoutFilesIsAnError(t *testing.T) {
 	isolateHome(t)
 	if code := runCheck(nil); code != 2 {

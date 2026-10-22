@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// version is set by the release build (-X main.version). A `go install`
-// build reports the module version from its build info instead.
+// version is set by release builds with -X main.version; go install
+// builds report the module version from build info.
 var version = "dev"
 
 func versionString() string {
@@ -63,7 +63,7 @@ func dispatch(args []string) int {
 }
 
 func usage(w *os.File) {
-	_, _ = fmt.Fprintln(w, `gochecks — context-efficient Go toolchain dispatcher
+	_, _ = fmt.Fprintln(w, `gochecks: Go toolchain checks for Claude Code hooks
 
 Usage:
   gochecks check [flags] [--changed "<file>..."] [file...]
@@ -77,12 +77,12 @@ Usage:
   gochecks help
 
 Flags for 'check':
-  --changed <list>   whitespace- or comma-separated files the agent touched
+  --changed <list>   whitespace- or comma-separated list of changed files
   --no-apply         don't auto-fix; report formatting as suggestions
   --text             human-readable output (default: JSON lines)
 
 Flags for 'fix':
-  --changed <list>   whitespace- or comma-separated files the agent touched
+  --changed <list>   whitespace- or comma-separated list of changed files
   --text             human-readable output (default: JSON lines)
 
 'check' silently applies gofmt + goimports, then runs analyzers.
@@ -98,5 +98,6 @@ Flags for 'fix':
 
 Positional file args are equivalent to --changed entries.
 
-See DESIGN.md for scope and roadmap.`)
+Config: .gochecks.json at the repo root (test, test_timeout, auto_fix,
+linters, exclude). See HOOKS.md for the Claude Code integration.`)
 }

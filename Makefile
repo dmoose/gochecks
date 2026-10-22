@@ -9,7 +9,7 @@ help: ## List available targets
 build: ## Build the binary into ./gochecks
 	go build -o $(BINARY) .
 
-install: ## Install gochecks to $(GOPATH)/bin — satisfies the PATH assumption used by the hook
+install: ## Install gochecks to $(GOPATH)/bin, where the hook expects it
 	go install .
 	@echo "installed to $(GOBIN)/$(BINARY)"
 

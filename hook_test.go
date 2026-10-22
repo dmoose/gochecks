@@ -13,8 +13,6 @@ func hookEvent(cwd, file string) string {
 	return fmt.Sprintf(`{"hook_event_name":"PostToolUse","tool_name":"Edit","cwd":%q,"tool_input":{"file_path":%q,"old_string":"a","new_string":"b"}}`, cwd, file)
 }
 
-// TestHookVetErrorGoesToStderr: an error-class finding must come back
-// on stderr with exit 2, the one path Claude Code shows the model.
 func TestHookVetErrorGoesToStderr(t *testing.T) {
 	hasGo(t)
 	isolateHome(t)
@@ -45,7 +43,6 @@ func Bad() {
 	}
 }
 
-// TestHookCleanIsSilent: nothing to report means no output at all.
 func TestHookCleanIsSilent(t *testing.T) {
 	hasGo(t)
 	isolateHome(t)
@@ -61,7 +58,6 @@ func TestHookCleanIsSilent(t *testing.T) {
 	}
 }
 
-// TestHookIgnoresNonGo: the hook does its own file gating.
 func TestHookIgnoresNonGo(t *testing.T) {
 	isolateHome(t)
 	dir := writeFixture(t, map[string]string{"notes.md": "# hi\n"})
@@ -72,8 +68,7 @@ func TestHookIgnoresNonGo(t *testing.T) {
 	}
 }
 
-// TestHookBadInput: garbage on stdin is a hook misconfiguration, not a
-// code problem, so it is a non-blocking exit 1.
+// Garbage on stdin is a misconfigured hook: non-blocking exit 1.
 func TestHookBadInput(t *testing.T) {
 	var out, errw bytes.Buffer
 	if code := hook(strings.NewReader("not json"), &out, &errw); code != 1 {
@@ -81,8 +76,6 @@ func TestHookBadInput(t *testing.T) {
 	}
 }
 
-// TestHookReportShape pins the additionalContext envelope and the
-// relative-path rendering without needing a warning-producing tool.
 func TestHookReportShape(t *testing.T) {
 	findings := []Finding{
 		{File: "/repo/pkg/a.go", Line: 3, Col: 4, Class: "warning", Tool: "staticcheck", Msg: "unused"},

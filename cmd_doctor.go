@@ -19,7 +19,7 @@ import (
 	goversion "go/version"
 )
 
-// toolReport is the doctor's verdict on one tool.
+// toolReport is the doctor's findings for one tool.
 type toolReport struct {
 	spec      toolSpec
 	path      string // "" when not on PATH
@@ -32,7 +32,7 @@ func (r toolReport) outdated() bool {
 	return r.latest != "" && r.installed.version != "" && r.installed.version != r.latest
 }
 
-// needsInstall says whether --fix should (re)install this tool.
+// needsInstall reports whether --fix should install this tool.
 func (r toolReport) needsInstall(cfg Config) bool {
 	if r.path == "" {
 		return r.spec.optIn == "" || (r.spec.optIn == "linters" && cfg.Linters)
@@ -40,10 +40,9 @@ func (r toolReport) needsInstall(cfg Config) bool {
 	return r.broken || r.outdated()
 }
 
-// runDoctor checks the Go toolchain and every tool gochecks drives:
-// present, built against the current toolchain, and current with its
-// module's latest release. --fix runs the installs. Exit 1 when
-// anything needs attention.
+// runDoctor checks the Go toolchain and each tool: present, built
+// against the current toolchain, and at its module's latest release.
+// --fix runs the installs. Exit 1 when anything needs attention.
 func runDoctor(args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -88,8 +87,7 @@ func runDoctor(args []string) int {
 	}
 	fmt.Println()
 	if !fix {
-		// One install per line: go install @version accepts only
-		// packages from a single module per invocation.
+		// go install pkg@version takes one module per invocation.
 		fmt.Println("to update, run gochecks doctor --fix, or:")
 		for _, pkg := range installs {
 			fmt.Println("  go install " + pkg)
@@ -131,8 +129,7 @@ func selfPath() string {
 	return p
 }
 
-// goToolchain reports the version and path of the go on PATH, which
-// is what every subprocess gochecks spawns will use.
+// goToolchain reports the version and path of the go on PATH.
 func goToolchain() (ver, path string) {
 	path, err := exec.LookPath("go")
 	if err != nil {
@@ -145,8 +142,8 @@ func goToolchain() (ver, path string) {
 	return strings.TrimSpace(string(out)), path
 }
 
-// latestGoRelease asks go.dev for the newest stable toolchain. Returns
-// "" on any failure; the doctor never blocks on the network.
+// latestGoRelease returns the newest stable toolchain per go.dev, or
+// "" on any failure.
 func latestGoRelease() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -181,14 +178,13 @@ func verdictGo(have, latest string) string {
 	case latest == "":
 		return "ok"
 	case goversion.Compare(have, latest) < 0:
-		return "outdated → " + latest + " (https://go.dev/dl)"
+		return "outdated, latest " + latest + " (https://go.dev/dl)"
 	default:
 		return "ok, latest"
 	}
 }
 
-// diagnoseTools probes every tool in parallel: location, build info,
-// typecheck health against the current toolchain, and latest release.
+// diagnoseTools probes every tool in parallel.
 func diagnoseTools(goVer string, offline bool) []toolReport {
 	reports := make([]toolReport, len(toolSpecs))
 	var wg sync.WaitGroup
@@ -218,9 +214,8 @@ func diagnoseTool(spec toolSpec, goVer string, offline bool) toolReport {
 	return r
 }
 
-// latestModuleVersion resolves module@latest through the configured
-// GOPROXY. Runs outside any module so go.work and replace directives
-// in the current repo cannot interfere.
+// latestModuleVersion resolves module@latest through GOPROXY, outside
+// any module so go.work and replace directives do not interfere.
 func latestModuleVersion(module string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -238,8 +233,8 @@ func latestModuleVersion(module string) string {
 	return m.Version
 }
 
-// probeTypecheck runs the tool on a trivial package written for the
-// current toolchain and reports whether it choked on export data.
+// probeTypecheck runs the tool on a trivial package for the current
+// toolchain and reports whether it failed on export data.
 func probeTypecheck(tool, goVer string) bool {
 	dir, err := os.MkdirTemp("", "gochecks-doctor-")
 	if err != nil {
@@ -296,7 +291,7 @@ func verdictTool(r toolReport, cfg Config, goVer string) string {
 		parts = append(parts, "BROKEN: built with "+r.installed.goVersion+", cannot read "+goVer+" export data")
 	}
 	if r.outdated() {
-		parts = append(parts, "outdated → "+r.latest)
+		parts = append(parts, "outdated, latest "+r.latest)
 	}
 	if len(parts) == 0 {
 		if r.latest == "" {
@@ -307,7 +302,7 @@ func verdictTool(r toolReport, cfg Config, goVer string) string {
 	return strings.Join(parts, "; ")
 }
 
-// repoWiring reports how the current repo is set up: hook, config.
+// repoWiring describes the hook and config found under cwd.
 func repoWiring(cwd string, cfg Config) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "repo %s\n", cwd)

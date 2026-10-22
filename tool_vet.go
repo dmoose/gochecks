@@ -2,9 +2,8 @@ package main
 
 import "strings"
 
-// runVet runs `go vet -json`. Diagnostics arrive as JSON on stdout;
-// a package that fails to typecheck reports plain text on stderr
-// instead, which matters when vet is run on its own (show).
+// runVet runs go vet -json. A package that fails to typecheck reports
+// plain text on stderr instead of JSON.
 func runVet(pkgDir string) ([]Finding, error) {
 	stdout, stderr := runTool(pkgDir, "go", "vet", "-json", ".")
 	fs := parseVet(stdout, pkgDir)

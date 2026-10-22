@@ -10,8 +10,8 @@ func errcheckAvailable() bool {
 	return err == nil
 }
 
-// runErrcheck reports unchecked errors. errcheck prints
-// "file:line:col:\t<source>", so the message is the offending line.
+// runErrcheck reports unchecked errors; errcheck prints the offending
+// source line after the position.
 func runErrcheck(pkgDir string) ([]Finding, error) {
 	stdout, stderr := runTool(pkgDir, "errcheck", "-abspath", ".")
 	return parseErrcheck(stdout+stderr, pkgDir), nil

@@ -10,8 +10,8 @@ func TestParseBuildInfo(t *testing.T) {
 	}
 }
 
-// Real stderr from staticcheck 2025.1.1, errcheck 1.10, and
-// golangci-lint 2.11.3 run against a Go 1.27 toolchain.
+// Output from staticcheck 2025.1.1, errcheck 1.10, and golangci-lint
+// 2.11.3 under a Go 1.27 toolchain.
 func TestToolBroken(t *testing.T) {
 	broken := []string{
 		`-: internal error in importing "internal/byteorder" (cannot decode "internal/byteorder", export data version 5 is greater than maximum supported version 2); please report an issue (compile)`,
@@ -53,7 +53,7 @@ func TestToolReportVerdicts(t *testing.T) {
 		want string
 	}{
 		{toolReport{spec: toolSpecs[1], path: "/x", installed: buildInfo{version: "v0.8.2"}, latest: "v0.8.2"}, "ok, latest"},
-		{toolReport{spec: toolSpecs[1], path: "/x", installed: buildInfo{version: "v0.6.1", goVersion: "go1.25.1"}, latest: "v0.8.2", broken: true}, "BROKEN: built with go1.25.1, cannot read go1.27.3 export data; outdated → v0.8.2"},
+		{toolReport{spec: toolSpecs[1], path: "/x", installed: buildInfo{version: "v0.6.1", goVersion: "go1.25.1"}, latest: "v0.8.2", broken: true}, "BROKEN: built with go1.25.1, cannot read go1.27.3 export data; outdated, latest v0.8.2"},
 		{toolReport{spec: toolSpecs[1]}, "MISSING"},
 		{toolReport{spec: toolSpecs[4]}, "not installed; opt-in via linters=true"},
 		{toolReport{spec: toolSpecs[0], path: "/x", installed: buildInfo{version: "v0.41.0"}}, "ok"},

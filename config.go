@@ -11,44 +11,28 @@ import (
 
 const configFilename = ".gochecks.json"
 
-// Config is the per-repo gochecks configuration. Every field is
-// optional; missing fields fall back to defaults. Keep this struct
-// ruthlessly minimal — each field is a compatibility commitment.
+// Config is the per-repo .gochecks.json. Every field is optional.
 type Config struct {
-	// Test enables `go test` on changed packages during check.
-	// Off by default because test suites vary wildly in cost and
-	// side-effect profile.
+	// Test runs go test on changed packages.
 	Test bool `json:"test"`
 
-	// TestTimeout is passed to `go test -timeout`. Must parse as a
-	// Go duration. Defaults to 30s.
+	// TestTimeout is passed to go test -timeout. Defaults to 30s.
 	TestTimeout string `json:"test_timeout"`
 
-	// Exclude is a list of path globs (doublestar style) that are
-	// filtered out of --changed before any tool runs. Useful for
-	// repos with generated subtrees the default detector misses.
+	// Exclude lists patterns dropped from the changed files before any
+	// tool runs. A pattern with a "/" matches as a path substring,
+	// otherwise against the basename.
 	Exclude []string `json:"exclude"`
 
-	// AutoFix extends silent apply from formatting to modernize.
-	// When true and check produces no errors or warnings, gochecks
-	// runs `go fix` modernize on the changed packages, emitting
-	// only the conflicts it couldn't auto-apply. When Linters is
-	// also true, AutoFix additionally enables golangci-lint's
-	// `--fix` pass for its autofix-capable diagnostics.
+	// AutoFix also applies go fix modernize when check finds nothing
+	// blocking, and adds --fix to golangci-lint when Linters is on.
 	AutoFix bool `json:"auto_fix"`
 
-	// Linters enables the optional golangci-lint umbrella pass
-	// during check. Off by default because golangci-lint adds
-	// startup latency; users opt in when they have a configured
-	// `.golangci.yml` in their repo. When enabled, gochecks does
-	// NOT run errcheck/ineffassign standalone — golangci-lint
-	// owns that coverage to avoid double-reporting. Users should
-	// also disable `modernize` in their `.golangci.yml` since Go
-	// 1.26's `go fix` (always on) already covers it.
+	// Linters runs golangci-lint. errcheck and ineffassign are then
+	// left to it. Disable its modernize linter; go fix covers that.
 	Linters bool `json:"linters"`
 
-	// Path is set after load to the config file that was read, or
-	// empty if defaults were used.
+	// Path is the config file read, or "" when defaults were used.
 	Path string `json:"-"`
 }
 
@@ -59,10 +43,9 @@ func defaultConfig() Config {
 	}
 }
 
-// loadConfig walks up from startDir looking for .gochecks.json, stopping
-// at the filesystem root. Returns defaults if nothing is found.
-// Errors in an existing config file are surfaced — silent fallback
-// would mask typos and waste debugging cycles.
+// loadConfig walks up from startDir to the root looking for
+// .gochecks.json and returns defaults when there is none. A config
+// file that fails to parse is an error, not a fallback.
 func loadConfig(startDir string) (Config, error) {
 	cfg := defaultConfig()
 	dir, err := filepath.Abs(startDir)
@@ -94,10 +77,7 @@ func (c Config) testTimeout() time.Duration {
 	return d
 }
 
-// applyExclude filters files whose absolute path matches any exclude
-// pattern. A pattern containing "/" is matched as a path substring;
-// otherwise it's matched against the file's basename via
-// filepath.Match (so "*_gen.go", "mock_*.go", etc. work).
+// applyExclude drops files matching any Exclude pattern.
 func (c Config) applyExclude(files []string) []string {
 	if len(c.Exclude) == 0 {
 		return files

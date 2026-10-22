@@ -8,11 +8,7 @@ import (
 	"time"
 )
 
-// cacheDir returns the directory used for gochecks's own artifacts
-// (currently just hook.log). The name is historical — an earlier
-// version kept a per-tool finding cache here; that's been removed in
-// favor of Go's own build cache, which handles transitive
-// invalidation correctly across packages.
+// cacheDir returns the per-user directory holding hook.log.
 func cacheDir() (string, error) {
 	base, err := os.UserCacheDir()
 	if err != nil {
@@ -25,20 +21,15 @@ func cacheDir() (string, error) {
 	return dir, nil
 }
 
-// invocationFindings is set by subcommands before they return, so the
-// hook log entry can record how many findings were emitted.
+// invocationFindings is the finding count recorded in the log line.
 var invocationFindings int
 
-// invocationNote is extra detail for the log line; the hook subcommand
-// records the edited file here since it arrives on stdin, not in args.
+// invocationNote is extra detail for the log line; hook records the
+// edited file here since it arrives on stdin rather than in args.
 var invocationNote string
 
-// logInvocation appends a single line to <cacheDir>/hook.log summarizing
-// the run. Called unconditionally from main so that even failed or
-// silent runs leave a trace — this solves the "did the hook actually
-// fire?" observability gap.
-//
-// Failures here are swallowed: logging must never affect the exit path.
+// logInvocation appends one line per run to hook.log. Logging failures
+// are ignored so they cannot change the exit code.
 func logInvocation(args []string, code int, dur time.Duration) {
 	dir, err := cacheDir()
 	if err != nil {

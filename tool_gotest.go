@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-// testEvent is the subset of `go test -json` we care about.
-// The full schema is documented at `go doc cmd/test2json`.
+// testEvent is the part of a go test -json event read here.
 type testEvent struct {
 	Action  string  `json:"Action"`
 	Package string  `json:"Package"`
@@ -24,9 +23,8 @@ type testEvent struct {
 
 var testFailLineRE = regexp.MustCompile(`^\s*([^:\s][^:]*?\.go):(\d+):\s*(.+)$`)
 
-// runGoTest executes `go test -json` in pkgDir with a timeout and
-// converts any failures into error-class findings. Go's own test
-// cache handles incremental runs, so we don't double-cache.
+// runGoTest runs go test -json in pkgDir and reports failures as
+// error findings.
 func runGoTest(pkgDir string, timeout time.Duration) ([]Finding, error) {
 	cmd := exec.Command("go", "test", "-json", "-timeout", timeout.String(), ".")
 	cmd.Dir = pkgDir
@@ -37,7 +35,7 @@ func runGoTest(pkgDir string, timeout time.Duration) ([]Finding, error) {
 	_ = cmd.Run()
 
 	findings := parseTestEvents(stdout.String(), pkgDir)
-	// Build / compile failures land on stderr, not in the JSON stream.
+	// A test binary that fails to build reports on stderr, not in JSON.
 	if stderr.Len() > 0 && len(findings) == 0 {
 		findings = append(findings, Finding{
 			File:  pkgDir,

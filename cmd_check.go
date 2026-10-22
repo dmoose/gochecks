@@ -18,7 +18,7 @@ func runCheck(args []string) int {
 		noApply     bool
 		textOut     bool
 	)
-	fs.StringVar(&changedFlag, "changed", "", "whitespace- or comma-separated files the agent touched")
+	fs.StringVar(&changedFlag, "changed", "", "whitespace- or comma-separated list of changed files")
 	fs.BoolVar(&noApply, "no-apply", false, "report formatting instead of fixing it")
 	fs.BoolVar(&textOut, "text", false, "human-readable text output (default: JSON lines)")
 	if err := fs.Parse(args); err != nil {
@@ -100,9 +100,7 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	}
 	findings = append(findings, pkgFindings...)
 
-	// AutoFix: extend the silent-apply path from gofmt/goimports to
-	// modernize. Only fires when nothing above is blocking, so we
-	// never silently mutate code that already has real issues.
+	// Modernize only a tree with nothing blocking in it.
 	if cfg.AutoFix && !hasBlockingFinding(findings) {
 		for pkgDir := range pkgs {
 			if err := runModernize(pkgDir); err != nil {
@@ -119,9 +117,7 @@ type pkgResult struct {
 	err      error
 }
 
-// analyzePackages fans out build/vet/staticcheck/test across packages
-// with a worker count capped at NumCPU. Returns the first error it
-// sees so the caller can bail cleanly.
+// analyzePackages runs the analyzers per package, NumCPU at a time.
 func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config) ([]Finding, error) {
 	probes := toolProbes{
 		staticcheck: staticcheckAvailable(),
@@ -129,7 +125,7 @@ func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config
 		ineffassign: ineffassignAvailable(),
 		golangci:    cfg.Linters && golangciLintAvailable(),
 	}
-	// The umbrella owns errcheck/ineffassign to avoid double-reporting.
+	// golangci-lint runs errcheck and ineffassign itself.
 	if probes.golangci {
 		probes.errcheck = false
 		probes.ineffassign = false
@@ -174,8 +170,8 @@ func analyzeOne(pkgDir string, scope map[string]bool, cfg Config, p toolProbes) 
 		return r
 	}
 	r.findings = filterScope(build, scope)
-	// A package that does not compile has nothing further to say: every
-	// analyzer would only echo the same type errors back.
+	// Analyzers on a package that does not compile only repeat the
+	// type errors.
 	if len(build) > 0 {
 		return r
 	}

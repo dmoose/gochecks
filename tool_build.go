@@ -16,12 +16,12 @@ type buildEvent struct {
 // runBuild compiles pkgDir and returns compile errors as findings.
 func runBuild(pkgDir string) ([]Finding, error) {
 	stdout, stderr := runTool(pkgDir, "go", "build", "-json", "-o", os.DevNull, ".")
-	// Early, serious errors still land on stderr as plain text.
+	// Errors before the build starts are plain text on stderr.
 	return append(parseBuildEvents(stdout, pkgDir), parseBuild(stderr, pkgDir)...), nil
 }
 
-// parseBuildEvents concatenates the build-output events, which together
-// are exactly what the text build would have printed.
+// parseBuildEvents joins the build-output events, which together are
+// the text build's output.
 func parseBuildEvents(out, pkgDir string) []Finding {
 	var text strings.Builder
 	for line := range strings.SplitSeq(out, "\n") {

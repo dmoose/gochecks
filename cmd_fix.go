@@ -14,7 +14,7 @@ func runFix(args []string) int {
 		changedFlag string
 		textOut     bool
 	)
-	fs.StringVar(&changedFlag, "changed", "", "whitespace- or comma-separated files the agent touched")
+	fs.StringVar(&changedFlag, "changed", "", "whitespace- or comma-separated list of changed files")
 	fs.BoolVar(&textOut, "text", false, "human-readable text output (default: JSON lines)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -50,10 +50,8 @@ func runFix(args []string) int {
 		return 2
 	}
 
-	// Modernize runs unconditionally here, before the check pass, so
-	// the tree is rewritten even when warnings remain. The check pass
-	// then runs with AutoFix forced on and reports whatever go fix
-	// could not apply.
+	// Modernize first, even if warnings remain; the check pass then
+	// reports what go fix could not apply.
 	for pkgDir := range groupByPackage(files) {
 		if err := runModernize(pkgDir); err != nil {
 			fmt.Fprintln(os.Stderr, "gochecks: modernize:", err)

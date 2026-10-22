@@ -1,55 +1,66 @@
 # gochecks
 
-Context-efficient Go toolchain dispatcher for LLM/agent workflows.
+Runs the Go toolchain and the usual analyzers over the files you just
+changed and reports only what matters, in a form a Claude Code hook can
+hand straight back to the model.
 
-Runs the standard Go toolchain (`gofmt`, `goimports`, `go build`,
-`go vet`, `go fix` modernize) plus probe-for-present bug detectors
-(`staticcheck`, `errcheck`, `ineffassign`) and an optional
-`golangci-lint` umbrella over a set of changed files, and returns a
-**structured, change-scoped, deduplicated** summary instead of raw
-tool stdout. The `hook` subcommand is a Claude Code `PostToolUse` hook:
-it reads the edit event from stdin and hands findings back through
-the channels the model actually sees.
-
-**Status:** v0.7-dev. `hook` / `check` / `fix` / `show` / `status` /
-`doctor` / `install` live. Package-level parallelism, `.gochecks.json` config, opt-in
-`golangci-lint` umbrella, embedded `go-current` skill, one-command
-scaffold (hook + skill + install-time doc) via `gochecks install`.
-See [DESIGN.md](./DESIGN.md) for scope and [HOOKS.md](./HOOKS.md)
-for Claude Code integration.
-
-## Quick start
-
-```bash
-go install github.com/dmoose/gochecks@latest
-cd path/to/your/go/repo
-gochecks install --config     # scaffold hook + skill + config
-gochecks doctor               # toolchain + analyzer health; --fix installs
-```
-
-## Why
-
-Raw toolchain output is expensive in LLM context. A single `go vet ./...`
-plus `gofmt -d` plus `go fix -diff ./...` can dump kilobytes of text — most
-of it either pre-existing (unrelated to the agent's change) or redundant
-across tools. `gochecks` wraps those tools with a change-scope filter, a
-classification scheme, and an auto-apply path for safe fixes, so the hook
-returns a tight summary of what needs attention.
-
-## Non-goals
-
-- Not a replacement for `gopls`, `go fix`, `staticcheck`, or `ast-grep`
-- Not a language server
-- Not a reimplementation of analysis passes
+`gochecks check` formats with gofmt and goimports, then runs `go build`,
+`go vet` and, when installed, staticcheck, errcheck and ineffassign on
+the changed packages. Findings outside the changed files are dropped.
+Each finding is one line with file, position, class (`error`,
+`warning`, `suggestion`) and tool, as JSON lines or text.
 
 ## Install
 
-```bash
+```sh
 go install github.com/dmoose/gochecks@latest
 ```
 
-Release archives for macOS, Linux and Windows are on the
+Archives for macOS, Linux and Windows are on the
 [releases page](https://github.com/dmoose/gochecks/releases).
+
+## Quick start
+
+```sh
+cd your-repo
+gochecks install --config
+gochecks doctor
+```
+
+`install` adds `gochecks hook` to `.claude/settings.json` as a
+PostToolUse hook on `Edit|Write`, writes the `go-current` skill and a
+short `.claude/gochecks.md`, and with `--config` a default
+`.gochecks.json`. `doctor` reports the toolchain and each analyzer's
+version and health; `doctor --fix` installs or updates them.
+
+## Commands
+
+| Command | |
+|---|---|
+| `hook` | PostToolUse entry point; reads the event from stdin |
+| `check [files]` | format, build, vet, analyzers; exit 0/1/2 by highest class |
+| `fix [files]` | `check` plus `go fix` modernize |
+| `show file:line` | source context and vet findings at a position |
+| `doctor [--fix]` | toolchain and tool health |
+| `status` | config in effect and the hook log tail |
+| `install` | wire a repo; `--upgrade` refreshes what install wrote |
+
+## Configuration
+
+`.gochecks.json` at the repo root, all keys optional:
+
+| Key | Default | |
+|---|---|---|
+| `test` | `false` | run `go test` on changed packages |
+| `test_timeout` | `"30s"` | passed to `go test -timeout` |
+| `auto_fix` | `false` | also apply `go fix` modernize when nothing blocks |
+| `linters` | `false` | run golangci-lint; it then owns errcheck and ineffassign |
+| `exclude` | `[]` | patterns dropped before any tool runs |
+
+Vendored and generated files are always skipped.
+
+See [HOOKS.md](./HOOKS.md) for how the hook reports to the model and
+[CHANGELOG.md](./CHANGELOG.md) for releases.
 
 ## License
 

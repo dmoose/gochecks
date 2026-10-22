@@ -9,8 +9,7 @@ import (
 	"strings"
 )
 
-// hookInput is the subset of the Claude Code PostToolUse payload we
-// read. Hooks receive the full event as JSON on stdin.
+// hookInput is the part of the PostToolUse event read from stdin.
 type hookInput struct {
 	HookEventName string `json:"hook_event_name"`
 	ToolName      string `json:"tool_name"`
@@ -20,8 +19,7 @@ type hookInput struct {
 	} `json:"tool_input"`
 }
 
-// hookOutput is the PostToolUse response shape Claude Code reads from
-// stdout on exit 0. additionalContext lands next to the tool result.
+// hookOutput is the PostToolUse response read from stdout on exit 0.
 type hookOutput struct {
 	HookSpecificOutput struct {
 		HookEventName     string `json:"hookEventName"`
@@ -29,16 +27,9 @@ type hookOutput struct {
 	} `json:"hookSpecificOutput"`
 }
 
-// runHook is the PostToolUse entry point. It reads the event from
-// stdin, checks the edited file if it is Go, and reports back through
-// the two channels Claude Code actually surfaces to the model:
-//
-//   - error-class findings: text on stderr, exit 2
-//   - warnings and suggestions: additionalContext JSON on stdout, exit 0
-//   - nothing to say: no output, exit 0
-//
-// Plain stdout on exit 0 and stderr on exit 1 never reach the model,
-// so `check` output is not reused here.
+// runHook checks the file named in a PostToolUse event. Claude Code
+// shows the model only stderr on exit 2 and additionalContext on
+// exit 0, so errors go to stderr and the rest into the JSON response.
 func runHook(args []string) int {
 	return hook(os.Stdin, os.Stdout, os.Stderr)
 }
@@ -94,8 +85,7 @@ func hook(in io.Reader, out, errw io.Writer) int {
 	return 0
 }
 
-// hookReport renders findings for the model: one line each, paths
-// relative to the session cwd to keep the token count down.
+// hookReport renders findings one per line, paths relative to cwd.
 func hookReport(findings []Finding, cwd string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "gochecks: %d finding(s)\n", len(findings))
@@ -107,8 +97,7 @@ func hookReport(findings []Finding, cwd string) string {
 			}
 		}
 		if f.Line == 0 {
-			// Package-level finding (modernize conflicts, test build
-			// failures): the "file" is the package directory.
+			// Package-level finding: the file is the package directory.
 			fmt.Fprintf(&b, "%s/ %s/%s: %s\n", strings.TrimSuffix(path, "/"), f.Class, f.Tool, f.Msg)
 			continue
 		}

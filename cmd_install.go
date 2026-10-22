@@ -16,14 +16,11 @@ var goCurrentSkill string
 //go:embed internal/install/gochecks.md
 var gochecksDoc string
 
-// hookCommand is what gets wired into .claude/settings.json. The hook
-// subcommand reads the PostToolUse event from stdin and ignores
-// non-Go files itself, so no shell glue is needed. Bare `gochecks` so
-// the user's PATH is the single source of truth.
+// hookCommand is the PostToolUse command written to .claude/settings.json.
+// The hook reads the event from stdin and skips non-Go files itself.
 const hookCommand = `gochecks hook`
 
-// hookMatcher names the file-editing tools. NotebookEdit is left out
-// on purpose; a Go file in a notebook is not a thing we check.
+// hookMatcher names the file-editing tools.
 const hookMatcher = "Edit|Write"
 
 func runInstall(args []string) int {
@@ -114,8 +111,7 @@ func installHook(root string, overwrite bool) error {
 	}
 	post, _ := hooks["PostToolUse"].([]any)
 
-	// Replace any prior gochecks entry (matched by substring in the
-	// command) if --force/--upgrade; otherwise skip if already present.
+	// Replace an existing entry only with --force or --upgrade.
 	idx := findGocheckHook(post)
 	if idx >= 0 {
 		if !overwrite {
@@ -152,8 +148,7 @@ func findGocheckHook(entries []any) int {
 }
 
 func containsGocheck(s string) bool {
-	// The gocheck names are the pre-rename spelling, so --upgrade
-	// replaces entries written by older installs.
+	// gocheck is the pre-rename spelling written by older installs.
 	for _, sub := range []string{"gochecks hook", "gochecks check", "gochecks fix", "gocheck hook", "gocheck check", "gocheck fix"} {
 		if strings.Contains(s, sub) {
 			return true

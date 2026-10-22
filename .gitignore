@@ -21,3 +21,9 @@ go.work.sum
 
 # hook trace log (from HOOKS.md verification snippet)
 /tmp/gochecks-hook.log
+
+# local notes and install artifacts, not part of the repo
+CLAUDE.md
+DESIGN.md
+.claude/skills/
+.claude/gochecks.md

@@ -7,8 +7,7 @@ func ineffassignAvailable() bool {
 	return err == nil
 }
 
-// runIneffassign reports assignments whose value is never used. It is
-// purely syntactic, so it never breaks on a toolchain change.
+// runIneffassign reports assignments whose value is never used.
 func runIneffassign(pkgDir string) ([]Finding, error) {
 	_, stderr := runTool(pkgDir, "ineffassign", ".")
 	return parseIneffassign(stderr, pkgDir), nil

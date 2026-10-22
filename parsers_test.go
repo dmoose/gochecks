@@ -231,8 +231,7 @@ func TestParseTestEvents(t *testing.T) {
 }
 
 func TestParseTestEventsNoFailureLine(t *testing.T) {
-	// Test panics or fails without a "file.go:line:" output — still emit a
-	// generic finding so the signal isn't lost.
+	// A failure without a file:line output still yields a finding.
 	out := `{"Action":"run","Package":"x","Test":"TestPanic"}
 {"Action":"output","Package":"x","Test":"TestPanic","Output":"panic: runtime error\n"}
 {"Action":"fail","Package":"x","Test":"TestPanic"}

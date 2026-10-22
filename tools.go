@@ -7,18 +7,17 @@ import (
 	"strings"
 )
 
-// toolSpec describes an external tool gochecks can drive: how to find
-// it, where it comes from, and whether it typechecks (and so can break
-// when the Go toolchain moves ahead of the build it was compiled with).
+// toolSpec describes an external tool: its binary, module, and
+// whether it typechecks.
 type toolSpec struct {
 	name   string
 	module string // module path, for @latest lookups
 	pkg    string // package path, for go install
-	// typechecks is true for tools that load export data and therefore
-	// need to be rebuilt after a Go toolchain upgrade.
+	// typechecks marks tools that read export data and so must be
+	// rebuilt after a Go upgrade.
 	typechecks bool
-	// optIn names the config field that enables the tool, or "" when it
-	// is used whenever present.
+	// optIn names the config field that enables the tool, or "" when
+	// presence is enough.
 	optIn string
 }
 
@@ -31,16 +30,16 @@ var toolSpecs = []toolSpec{
 	{name: "gopls", module: "golang.org/x/tools/gopls", pkg: "golang.org/x/tools/gopls"},
 }
 
-// toolBrokenRE matches what analyzers print when they cannot read the
-// export data of a newer toolchain than the one they were built with.
+// toolBrokenRE matches what analyzers print when built against an
+// older Go than the export data they are reading.
 var toolBrokenRE = regexp.MustCompile(`export data version|internal error in importing|could not load export data|internal error: package .* without types|used to build golangci-lint is lower than the targeted Go version`)
 
 func toolBroken(out string) bool {
 	return toolBrokenRE.MatchString(out)
 }
 
-// brokenFinding is the single warning emitted in place of a tool's
-// findings when its output shows it cannot analyze this toolchain.
+// brokenFinding replaces a tool's findings when its output shows it
+// cannot read this toolchain.
 func brokenFinding(tool, pkgDir string) []Finding {
 	return []Finding{{
 		File:  pkgDir,

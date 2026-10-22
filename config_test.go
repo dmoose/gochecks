@@ -10,7 +10,7 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	c := defaultConfig()
 	if c.Test {
-		t.Error("default Test should be false — opt-in only")
+		t.Error("default Test should be false")
 	}
 	if c.testTimeout() != 30*time.Second {
 		t.Errorf("default testTimeout = %v, want 30s", c.testTimeout())

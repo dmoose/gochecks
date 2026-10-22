@@ -11,14 +11,14 @@ import (
 	"strings"
 )
 
-// analyzer is one per-package pass run after a successful build.
+// analyzer is one per-package pass, run after a successful build.
 type analyzer struct {
 	name string
-	// enabled decides whether the pass runs for this invocation.
+	// enabled reports whether the pass runs for this invocation.
 	enabled func(cfg Config, p toolProbes) bool
 	run     func(pkgDir string, cfg Config) ([]Finding, error)
-	// unscoped passes keep findings outside the changed files: a test
-	// failure points at the test file, which is rarely the edit.
+	// unscoped passes keep findings outside the changed files; a test
+	// failure points at the test file.
 	unscoped bool
 }
 
@@ -38,7 +38,7 @@ func ignoreCfg(f func(string) ([]Finding, error)) func(string, Config) ([]Findin
 }
 
 // runTool runs name in dir and returns both streams. Exit status is
-// deliberately ignored: every tool here exits non-zero on findings.
+// ignored; every tool here exits non-zero on findings.
 func runTool(dir, name string, args ...string) (stdout, stderr string) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
@@ -118,8 +118,7 @@ func parseAnalysisJSON(out string) map[string]map[string][]analysisDiag {
 	return m
 }
 
-// analysisFindings flattens the JSON tree into findings in a stable
-// order. msg receives the analyzer name and message.
+// analysisFindings flattens the tree into findings sorted by position.
 func analysisFindings(tree map[string]map[string][]analysisDiag, pkgDir, tool, class string, msg func(analyzer, message string) string) []Finding {
 	var fs []Finding
 	for _, byAnalyzer := range tree {

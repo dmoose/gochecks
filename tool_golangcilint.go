@@ -5,7 +5,7 @@ import (
 	"os/exec"
 )
 
-// golangci-lint v2 JSON output shape — we only read the subset we need.
+// glReport is the part of the golangci-lint v2 JSON report read here.
 type glReport struct {
 	Issues []struct {
 		FromLinter string `json:"FromLinter"`
@@ -24,11 +24,8 @@ func golangciLintAvailable() bool {
 	return err == nil
 }
 
-// runGolangciLint runs the umbrella linter. When autoFix is true,
-// `--fix` silently applies any autofix-capable diagnostics in place;
-// the JSON report then contains only the issues that weren't fixed.
-// We never treat a nonzero exit as an error — golangci-lint exits
-// nonzero whenever any issues remain, which is the expected case.
+// runGolangciLint runs golangci-lint, with --fix when autoFix is set;
+// the report then holds only what was not fixed.
 func runGolangciLint(pkgDir string, autoFix bool) ([]Finding, error) {
 	args := []string{"run", "--output.json.path=stdout"}
 	if autoFix {
