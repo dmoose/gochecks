@@ -71,10 +71,13 @@ Dropped before any tool runs:
 
 ## Optional tools
 
-staticcheck, errcheck and ineffassign are used when on PATH and skipped
-when not. golangci-lint runs only with `"linters": true`; it then owns
-errcheck and ineffassign, and with `auto_fix` runs with `--fix`.
-Disable its `modernize` linter, since `go fix` already covers it.
+gofumpt, staticcheck, errcheck, ineffassign and golangci-lint are used
+when on PATH and skipped when not; `"linters": false` turns
+golangci-lint off. gofumpt replaces gofmt when present. golangci-lint
+takes the repo's `.golangci.yml` if there is one and the profile
+embedded in gochecks otherwise; it then owns staticcheck, errcheck and
+ineffassign, and with `auto_fix` runs with `--fix`. If you keep your own config,
+leave its `modernize` linter off, since `go fix` already covers it.
 `gochecks doctor` lists what is installed and whether each tool still
 works against the current Go toolchain; `doctor --fix` installs or
 updates them.

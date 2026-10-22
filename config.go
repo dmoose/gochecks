@@ -28,9 +28,11 @@ type Config struct {
 	// blocking, and adds --fix to golangci-lint when Linters is on.
 	AutoFix bool `json:"auto_fix"`
 
-	// Linters runs golangci-lint. errcheck and ineffassign are then
-	// left to it. Disable its modernize linter; go fix covers that.
-	Linters bool `json:"linters"`
+	// Linters controls golangci-lint, which runs whenever it is on PATH
+	// unless this is false. The repo's .golangci.yml is used when there
+	// is one, otherwise the profile embedded in gochecks. staticcheck,
+	// errcheck and ineffassign are left to it when it runs.
+	Linters *bool `json:"linters,omitempty"`
 
 	// Path is the config file read, or "" when defaults were used.
 	Path string `json:"-"`
@@ -68,6 +70,9 @@ func loadConfig(startDir string) (Config, error) {
 		dir = parent
 	}
 }
+
+// lintersOn reports whether golangci-lint may run.
+func (c Config) lintersOn() bool { return c.Linters == nil || *c.Linters }
 
 func (c Config) testTimeout() time.Duration {
 	d, err := time.ParseDuration(c.TestTimeout)

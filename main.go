@@ -1,12 +1,19 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"runtime/debug"
 	"strings"
 	"time"
 )
+
+// lintProfile is the golangci-lint configuration used for repos that
+// have none of their own. The same file lints this repo.
+//
+//go:embed .golangci.yml
+var lintProfile string
 
 // version is set by release builds with -X main.version; go install
 // builds report the module version from build info.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -77,7 +78,7 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 
 		impFindings, err := runGoimports(files, false)
 		switch {
-		case err == errGoimportsMissing:
+		case errors.Is(err, errGoimportsMissing):
 			fmt.Fprintln(os.Stderr, goimportsMissingNote)
 		case err != nil:
 			return nil, fmt.Errorf("goimports: %w", err)
@@ -123,10 +124,11 @@ func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config
 		staticcheck: staticcheckAvailable(),
 		errcheck:    errcheckAvailable(),
 		ineffassign: ineffassignAvailable(),
-		golangci:    cfg.Linters && golangciLintAvailable(),
+		golangci:    cfg.lintersOn() && golangciLintAvailable(),
 	}
-	// golangci-lint runs errcheck and ineffassign itself.
+	// golangci-lint runs staticcheck, errcheck and ineffassign itself.
 	if probes.golangci {
+		probes.staticcheck = false
 		probes.errcheck = false
 		probes.ineffassign = false
 	}
@@ -164,11 +166,7 @@ type toolProbes struct {
 
 func analyzeOne(pkgDir string, scope map[string]bool, cfg Config, p toolProbes) pkgResult {
 	var r pkgResult
-	build, err := runBuild(pkgDir)
-	if err != nil {
-		r.err = fmt.Errorf("build: %w", err)
-		return r
-	}
+	build := runBuild(pkgDir)
 	r.findings = filterScope(build, scope)
 	// Analyzers on a package that does not compile only repeat the
 	// type errors.
@@ -206,7 +204,7 @@ func applyFormat(files []string) error {
 		return fmt.Errorf("gofmt: %w", err)
 	}
 	_, err := runGoimports(files, true)
-	if err == errGoimportsMissing {
+	if errors.Is(err, errGoimportsMissing) {
 		fmt.Fprintln(os.Stderr, goimportsMissingNote)
 		return nil
 	}

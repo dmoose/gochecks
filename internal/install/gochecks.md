@@ -4,8 +4,8 @@
 Every time Claude Code edits a `.go` file, gochecks runs in the
 background before the next agent turn and does four things:
 
-1. **Silently auto-applies `gofmt` + `goimports`**, the agent
-   never sees whitespace noise.
+1. **Silently applies `gofumpt` (or `gofmt`) + `goimports`**, the
+   agent never sees whitespace noise.
 2. **Runs `go build` + `go vet` per changed package**, compile
    and analysis errors come back to the agent on stderr with exit
    2, before its next action. Warnings and suggestions arrive as
@@ -43,8 +43,8 @@ next action.
 gochecks doctor --fix
 ```
 
-Installs or updates `goimports`, `staticcheck`, `errcheck`,
-`ineffassign` (and `golangci-lint` when `linters` is on). Each adds
+Installs or updates `goimports`, `gofumpt`, `staticcheck`, `errcheck`,
+`ineffassign` and `golangci-lint`. Each adds
 a bug-detection layer at ~50-200ms per package. Run `gochecks doctor`
 again after a Go upgrade: analyzers built against an older Go stop
 reading the new export data, and the hook reports them as a single
@@ -69,28 +69,21 @@ warning until they are rebuilt.
 - `auto_fix: true`, extends silent-apply from gofmt/goimports to
   the `go fix` modernizers, and to `golangci-lint --fix`
   when `linters` is also on.
-- `linters: true`, enables the `golangci-lint` umbrella (100+
-  linters). Adds ~0.5-2s cold startup. Respects your
-  `.golangci.yml`. When enabled, gochecks takes ownership of
-  `errcheck`/`ineffassign` coverage via the umbrella and skips
-  its standalone probes.
+- `linters: false`, turns golangci-lint off. On by default when it
+  is installed: the repo's `.golangci.yml` if present, otherwise
+  the profile embedded in gochecks (bug finders plus autofix idiom
+  linters, no style cops). It then owns `staticcheck`, `errcheck`
+  and `ineffassign`.
 - `exclude`, glob patterns dropped from `--changed` before any
   tool runs. Generated-file comments
   (`// Code generated ... DO NOT EDIT.`) are always skipped
   automatically.
 
-### 3. If you enable `linters`, disable `modernize` in `.golangci.yml`
+### 3. Keeping your own `.golangci.yml`
 
-`go fix` modernize (always on in gochecks) and golangci-lint's
-`modernize` linter wrap the same analyzers. Enabling both
-double-reports the same diagnostics.
-
-```yaml
-# .golangci.yml
-linters:
-  disable:
-    - modernize
-```
+Leave its `modernize` linter off: `go fix` modernize (always on in
+gochecks) already covers it. To start from the gochecks profile, copy
+`.golangci.yml` from the gochecks repo.
 
 ### 4. Verify it's wired
 

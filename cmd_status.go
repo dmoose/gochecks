@@ -27,17 +27,18 @@ func runStatus(args []string) int {
 	cwd, _ := os.Getwd()
 	cfg, cfgErr := loadConfig(cwd)
 	fmt.Println("config:")
-	if cfgErr != nil {
+	switch {
+	case cfgErr != nil:
 		fmt.Printf("  error:  %v\n", cfgErr)
-	} else if cfg.Path == "" {
+	case cfg.Path == "":
 		fmt.Println("  (defaults; no .gochecks.json found walking up from cwd)")
-	} else {
+	default:
 		fmt.Printf("  file:   %s\n", cfg.Path)
 	}
 	fmt.Printf("  test:         %t\n", cfg.Test)
 	fmt.Printf("  test_timeout: %s\n", cfg.testTimeout())
 	fmt.Printf("  auto_fix:     %t\n", cfg.AutoFix)
-	fmt.Printf("  linters:      %t\n", cfg.Linters)
+	fmt.Printf("  linters:      %t\n", cfg.lintersOn())
 	fmt.Printf("  exclude:      %v\n", cfg.Exclude)
 	fmt.Println()
 

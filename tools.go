@@ -23,10 +23,11 @@ type toolSpec struct {
 
 var toolSpecs = []toolSpec{
 	{name: "goimports", module: "golang.org/x/tools", pkg: "golang.org/x/tools/cmd/goimports"},
+	{name: "gofumpt", module: "mvdan.cc/gofumpt", pkg: "mvdan.cc/gofumpt"},
 	{name: "staticcheck", module: "honnef.co/go/tools", pkg: "honnef.co/go/tools/cmd/staticcheck", typechecks: true},
 	{name: "errcheck", module: "github.com/kisielk/errcheck", pkg: "github.com/kisielk/errcheck", typechecks: true},
 	{name: "ineffassign", module: "github.com/gordonklaus/ineffassign", pkg: "github.com/gordonklaus/ineffassign"},
-	{name: "golangci-lint", module: "github.com/golangci/golangci-lint/v2", pkg: "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", typechecks: true, optIn: "linters"},
+	{name: "golangci-lint", module: "github.com/golangci/golangci-lint/v2", pkg: "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", typechecks: true},
 	{name: "gopls", module: "golang.org/x/tools/gopls", pkg: "golang.org/x/tools/gopls"},
 }
 

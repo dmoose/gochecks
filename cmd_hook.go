@@ -30,7 +30,7 @@ type hookOutput struct {
 // runHook checks the file named in a PostToolUse event. Claude Code
 // shows the model only stderr on exit 2 and additionalContext on
 // exit 0, so errors go to stderr and the rest into the JSON response.
-func runHook(args []string) int {
+func runHook(_ []string) int {
 	return hook(os.Stdin, os.Stdout, os.Stderr)
 }
 

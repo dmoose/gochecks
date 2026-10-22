@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- golangci-lint runs whenever installed, with the repo's `.golangci.yml`
+  or the profile embedded in gochecks; idiom linters report as
+  suggestions, bug linters as warnings; it then owns staticcheck,
+  errcheck and ineffassign. `"linters": false` opts out.
+- gofumpt replaces gofmt when installed; goimports groups the module's
+  own imports with `-local`.
+- doctor knows gofumpt.
+
 ## 0.7.0
 
 - `hook` subcommand for Claude Code PostToolUse: event on stdin, errors

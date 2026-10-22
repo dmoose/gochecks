@@ -35,7 +35,7 @@ func (r toolReport) outdated() bool {
 // needsInstall reports whether --fix should install this tool.
 func (r toolReport) needsInstall(cfg Config) bool {
 	if r.path == "" {
-		return r.spec.optIn == "" || (r.spec.optIn == "linters" && cfg.Linters)
+		return r.spec.optIn == "" || (r.spec.optIn == "linters" && cfg.lintersOn())
 	}
 	return r.broken || r.outdated()
 }
@@ -96,7 +96,7 @@ func runDoctor(args []string) int {
 	}
 	for _, pkg := range installs {
 		fmt.Printf("go install %s\n", pkg)
-		cmd := exec.Command("go", "install", pkg)
+		cmd := exec.Command("go", "install", pkg) //nolint:gosec // pkg comes from toolSpecs
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "gochecks doctor: %s: %v\n", pkg, err)
@@ -219,7 +219,7 @@ func diagnoseTool(spec toolSpec, goVer string, offline bool) toolReport {
 func latestModuleVersion(module string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-json", module+"@latest")
+	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-json", module+"@latest") //nolint:gosec // module comes from toolSpecs
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "GOFLAGS=", "GOWORK=off")
 	out, err := cmd.Output()
@@ -283,7 +283,7 @@ func describeInstalled(r toolReport) string {
 func verdictTool(r toolReport, cfg Config, goVer string) string {
 	var parts []string
 	switch {
-	case r.path == "" && r.spec.optIn == "linters" && !cfg.Linters:
+	case r.path == "" && r.spec.optIn == "linters" && !cfg.lintersOn():
 		return "not installed; opt-in via linters=true"
 	case r.path == "":
 		parts = append(parts, "MISSING")
@@ -321,7 +321,7 @@ func repoWiring(cwd string, cfg Config) string {
 	if cfg.Path == "" {
 		b.WriteString("  config: defaults (no .gochecks.json)")
 	} else {
-		fmt.Fprintf(&b, "  config: %s (test=%t auto_fix=%t linters=%t)", cfg.Path, cfg.Test, cfg.AutoFix, cfg.Linters)
+		fmt.Fprintf(&b, "  config: %s (test=%t auto_fix=%t linters=%t)", cfg.Path, cfg.Test, cfg.AutoFix, cfg.lintersOn())
 	}
 	return b.String()
 }

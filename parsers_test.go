@@ -196,6 +196,23 @@ func TestParseGolangciLint(t *testing.T) {
 	}
 }
 
+func TestParseGolangciLintTrailingText(t *testing.T) {
+	out := `{"Issues":[{"FromLinter":"gosec","Text":"G204","Severity":"","Pos":{"Filename":"a.go","Line":1,"Column":1}}]}
+2 issues:
+* gosec: 2
+`
+	fs := parseGolangciLint(out, "/tmp/pkg")
+	if len(fs) != 1 {
+		t.Fatalf("report followed by stats text: got %d findings, want 1", len(fs))
+	}
+	if fs[0].Class != "warning" {
+		t.Errorf("gosec should be a warning: %+v", fs[0])
+	}
+	if fs := parseGolangciLint(`{"Issues":[{"FromLinter":"perfsprint","Text":"x","Pos":{"Filename":"a.go","Line":1}}]}`, "/p"); fs[0].Class != "suggestion" {
+		t.Errorf("perfsprint should be a suggestion: %+v", fs[0])
+	}
+}
+
 func TestParseGolangciLintEmpty(t *testing.T) {
 	if fs := parseGolangciLint("", "/tmp"); len(fs) != 0 {
 		t.Errorf("empty input should yield 0 findings, got %d", len(fs))

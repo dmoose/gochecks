@@ -1,0 +1,105 @@
+# gochecks lint profile. Used as-is for repos that have no .golangci.yml
+# of their own; copy it into a repo to tune it there.
+#
+# Aimed at code written quickly, often by a model: catch the bugs vet
+# and staticcheck miss, apply idiom fixes mechanically, and stay out of
+# the way otherwise. Style cops that argue about blank lines, line
+# length, function length or magic numbers are left out on purpose.
+# modernize is left out because go fix runs it; noctx because it flags
+# every exec.Command in a CLI.
+
+version: "2"
+
+linters:
+  default: none
+  enable:
+    # the standard five
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # bugs
+    - asasalint
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - makezero
+    - nilerr
+    - nilnesserr
+    - predeclared
+    - reassign
+    - recvcheck
+    - rowserrcheck
+    - sqlclosecheck
+    - unparam
+    - wastedassign
+    # idiom, mostly with autofix
+    - copyloopvar
+    - errname
+    - exptostd
+    - fatcontext
+    - iface
+    - intrange
+    - mirror
+    - misspell
+    - nilnil
+    - perfsprint
+    - revive
+    - sloglint
+    - testifylint
+    - unconvert
+    - usestdlibvars
+    - usetesting
+  settings:
+    gosec:
+      excludes:
+        - G104 # unhandled errors: errcheck's job
+        - G301 # 0755 directories and 0644 files are normal for source
+        - G302
+        - G306
+    errorlint:
+      asserts: false # errors.AsType is the fix, not a type switch rewrite
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: early-return
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: redundant-import-alias
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: use-any
+        - name: use-errors-new
+        - name: var-declaration
+        - name: var-naming
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+      - common-false-positives
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

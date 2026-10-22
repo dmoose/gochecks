@@ -159,6 +159,25 @@ newer than that line.
   runs under a fake clock with `synctest.Wait` / `synctest.Sleep`.
 - Table tests as `t.Run(name, func(t *testing.T) { ... })` subtests.
 
+## Linters in play
+
+gochecks runs golangci-lint with a profile tuned for bugs and idiom.
+Write to it directly:
+
+- Close response bodies; check `rows.Err()`; close `sql.Rows`.
+- Wrap with `%w`, compare with `errors.Is`, never `==` on errors.
+- `switch` over an enum covers every value or has a `default`.
+- Return `(T, error)` with exactly one of them set; never `nil, nil`.
+- `http.MethodGet`, `http.StatusOK`: the stdlib constants, not strings.
+- `for i := range n`, not a three-clause loop.
+- `strconv.Itoa(n)` and `a + b`, not `fmt.Sprintf` for them.
+- Receivers named consistently across a type; error vars `ErrX`/`errX`;
+  error strings lowercase, no trailing punctuation; `any`, not
+  `interface{}`.
+- No unused parameters: name them `_` if an interface forces them.
+- Shell commands and file paths built from input are flagged by gosec;
+  pin the command and validate the path or annotate with a reason.
+
 ## What modernize cannot rewrite for you
 
 The analyzer gives up when two modernizations overlap (e.g. rewriting

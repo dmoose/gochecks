@@ -26,7 +26,7 @@ var testFailLineRE = regexp.MustCompile(`^\s*([^:\s][^:]*?\.go):(\d+):\s*(.+)$`)
 // runGoTest runs go test -json in pkgDir and reports failures as
 // error findings.
 func runGoTest(pkgDir string, timeout time.Duration) ([]Finding, error) {
-	cmd := exec.Command("go", "test", "-json", "-timeout", timeout.String(), ".")
+	cmd := exec.Command("go", "test", "-json", "-timeout", timeout.String(), ".") //nolint:gosec // timeout is a parsed duration
 	cmd.Dir = pkgDir
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
@@ -41,7 +41,7 @@ func runGoTest(pkgDir string, timeout time.Duration) ([]Finding, error) {
 			File:  pkgDir,
 			Class: "error",
 			Tool:  "test",
-			Msg:   fmt.Sprintf("test binary build failed: %s", strings.TrimSpace(stderr.String())),
+			Msg:   "test binary build failed: " + strings.TrimSpace(stderr.String()),
 		})
 	}
 	return findings, nil
@@ -113,6 +113,6 @@ func failureFinding(test string, outputs []string, pkgDir string) Finding {
 		File:  pkgDir,
 		Class: "error",
 		Tool:  "test",
-		Msg:   fmt.Sprintf("%s failed", test),
+		Msg:   test + " failed",
 	}
 }
