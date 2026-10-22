@@ -27,3 +27,6 @@ CLAUDE.md
 DESIGN.md
 .claude/skills/
 .claude/gochecks.md
+
+# goreleaser output
+dist/
