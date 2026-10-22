@@ -1,54 +1,41 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
-var buildLineRE = regexp.MustCompile(`^(.+?):(\d+):(\d+): (.+)$`)
+// buildEvent is one line of `go build -json` (see go help buildjson).
+type buildEvent struct {
+	ImportPath string
+	Action     string
+	Output     string
+}
 
-// runBuild compiles pkgDir and returns any build errors as findings.
-// Output goes to /dev/null so no artifact is left behind.
+// runBuild compiles pkgDir and returns compile errors as findings.
 func runBuild(pkgDir string) ([]Finding, error) {
-	cmd := exec.Command("go", "build", "-o", os.DevNull, ".")
-	cmd.Dir = pkgDir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	_ = cmd.Run()
-	return parseBuild(stderr.String(), pkgDir), nil
+	stdout, stderr := runTool(pkgDir, "go", "build", "-json", "-o", os.DevNull, ".")
+	// Early, serious errors still land on stderr as plain text.
+	return append(parseBuildEvents(stdout, pkgDir), parseBuild(stderr, pkgDir)...), nil
+}
+
+// parseBuildEvents concatenates the build-output events, which together
+// are exactly what the text build would have printed.
+func parseBuildEvents(out, pkgDir string) []Finding {
+	var text strings.Builder
+	for line := range strings.SplitSeq(out, "\n") {
+		var ev buildEvent
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
+		}
+		if ev.Action == "build-output" {
+			text.WriteString(ev.Output)
+		}
+	}
+	return parseBuild(text.String(), pkgDir)
 }
 
 func parseBuild(out, pkgDir string) []Finding {
-	var fs []Finding
-	for line := range strings.SplitSeq(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		m := buildLineRE.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		file := m[1]
-		if !filepath.IsAbs(file) {
-			file = filepath.Join(pkgDir, file)
-		}
-		file = filepath.Clean(file)
-		ln, _ := strconv.Atoi(m[2])
-		col, _ := strconv.Atoi(m[3])
-		fs = append(fs, Finding{
-			File:  file,
-			Line:  ln,
-			Col:   col,
-			Class: "error",
-			Tool:  "build",
-			Msg:   m[4],
-		})
-	}
-	return fs
+	return textFindings(out, pkgDir, "build", "error")
 }

@@ -50,25 +50,17 @@ func runFix(args []string) int {
 		return 2
 	}
 
-	pkgs := groupByPackage(files)
-	var extra []Finding
-	for pkgDir := range pkgs {
+	// Modernize runs unconditionally here, before the check pass, so
+	// the tree is rewritten even when warnings remain. The check pass
+	// then runs with AutoFix forced on and reports whatever go fix
+	// could not apply.
+	for pkgDir := range groupByPackage(files) {
 		if err := runModernize(pkgDir); err != nil {
 			fmt.Fprintln(os.Stderr, "gochecks: modernize:", err)
 			return 2
 		}
-		extra = append(extra, modernizeConflicts(pkgDir)...)
 	}
-
-	// `gochecks fix` implies silent auto-apply for every tool that
-	// supports it — force AutoFix on for the subsequent check pass
-	// regardless of the user's config default.
 	fixCfg := cfg
 	fixCfg.AutoFix = true
-	code := runCheckWith(files, false, textOut, fixCfg)
-	if len(extra) > 0 {
-		emit(extra, textOut)
-		invocationFindings += len(extra)
-	}
-	return code
+	return runCheckWith(files, false, textOut, fixCfg)
 }

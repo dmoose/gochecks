@@ -173,65 +173,25 @@ func analyzeOne(pkgDir string, scope map[string]bool, cfg Config, p toolProbes) 
 		r.err = fmt.Errorf("build: %w", err)
 		return r
 	}
-	r.findings = append(r.findings, filterScope(build, scope)...)
+	r.findings = filterScope(build, scope)
 	// A package that does not compile has nothing further to say: every
 	// analyzer would only echo the same type errors back.
 	if len(build) > 0 {
 		return r
 	}
-
-	vet, err := runVet(pkgDir)
-	if err != nil {
-		r.err = fmt.Errorf("vet: %w", err)
-		return r
-	}
-	r.findings = append(r.findings, filterScope(vet, scope)...)
-
-	if p.staticcheck {
-		scf, err := runStaticcheck(pkgDir)
+	for _, a := range analyzers {
+		if !a.enabled(cfg, p) {
+			continue
+		}
+		fs, err := a.run(pkgDir, cfg)
 		if err != nil {
-			r.err = fmt.Errorf("staticcheck: %w", err)
+			r.err = fmt.Errorf("%s: %w", a.name, err)
 			return r
 		}
-		r.findings = append(r.findings, filterScope(scf, scope)...)
-	}
-
-	if p.errcheck {
-		ef, err := runErrcheck(pkgDir)
-		if err != nil {
-			r.err = fmt.Errorf("errcheck: %w", err)
-			return r
+		if !a.unscoped {
+			fs = filterScope(fs, scope)
 		}
-		r.findings = append(r.findings, filterScope(ef, scope)...)
-	}
-
-	if p.ineffassign {
-		inf, err := runIneffassign(pkgDir)
-		if err != nil {
-			r.err = fmt.Errorf("ineffassign: %w", err)
-			return r
-		}
-		r.findings = append(r.findings, filterScope(inf, scope)...)
-	}
-
-	if p.golangci {
-		gl, err := runGolangciLint(pkgDir, cfg.AutoFix)
-		if err != nil {
-			r.err = fmt.Errorf("golangci-lint: %w", err)
-			return r
-		}
-		r.findings = append(r.findings, filterScope(gl, scope)...)
-	}
-
-	if cfg.Test {
-		tests, err := runGoTest(pkgDir, cfg.testTimeout())
-		if err != nil {
-			r.err = fmt.Errorf("test: %w", err)
-			return r
-		}
-		// Test failures may reference files outside --changed
-		// (e.g. the test file itself); keep them.
-		r.findings = append(r.findings, tests...)
+		r.findings = append(r.findings, fs...)
 	}
 	return r
 }

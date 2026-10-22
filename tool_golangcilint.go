@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"os/exec"
-	"path/filepath"
 )
 
 // golangci-lint v2 JSON output shape — we only read the subset we need.
@@ -37,16 +35,12 @@ func runGolangciLint(pkgDir string, autoFix bool) ([]Finding, error) {
 		args = append(args, "--fix")
 	}
 	args = append(args, "./...")
-	cmd := exec.Command("golangci-lint", args...)
-	cmd.Dir = pkgDir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	_ = cmd.Run()
+	stdout, stderr := runTool(pkgDir, "golangci-lint", args...)
 	// A toolchain mismatch aborts before any JSON is written.
-	if toolBroken(stderr.String()) {
+	if toolBroken(stderr) {
 		return brokenFinding("golangci-lint", pkgDir), nil
 	}
-	return parseGolangciLint(stdout.String(), pkgDir), nil
+	return parseGolangciLint(stdout, pkgDir), nil
 }
 
 func parseGolangciLint(out, pkgDir string) []Finding {
@@ -66,20 +60,12 @@ func parseGolangciLint(out, pkgDir string) []Finding {
 		if file == "" {
 			continue
 		}
-		if !filepath.IsAbs(file) {
-			file = filepath.Join(pkgDir, file)
-		}
-		file = filepath.Clean(file)
 		class := "warning"
 		if is.Severity == "error" {
 			class = "error"
 		}
-		// Some linters are covered by our direct-probe path
-		// (errcheck, ineffassign, staticcheck, govet). If users have
-		// enabled gochecks's linters umbrella, the umbrella owns them;
-		// skip the duplicate class overrides.
 		fs = append(fs, Finding{
-			File:  file,
+			File:  absIn(pkgDir, file),
 			Line:  is.Pos.Line,
 			Col:   is.Pos.Column,
 			Class: class,

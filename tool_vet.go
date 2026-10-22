@@ -1,65 +1,26 @@
 package main
 
-import (
-	"bytes"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
-)
+import "strings"
 
-var vetLineRE = regexp.MustCompile(`^(.+?):(\d+):(\d+): (.+)$`)
-
+// runVet runs `go vet -json`. Diagnostics arrive as JSON on stdout;
+// a package that fails to typecheck reports plain text on stderr
+// instead, which matters when vet is run on its own (show).
 func runVet(pkgDir string) ([]Finding, error) {
-	cmd := exec.Command("go", "vet", ".")
-	cmd.Dir = pkgDir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	// go vet exits non-zero on findings; that's expected, not an error.
-	_ = cmd.Run()
-	return parseVet(stderr.String(), pkgDir), nil
+	stdout, stderr := runTool(pkgDir, "go", "vet", "-json", ".")
+	fs := parseVet(stdout, pkgDir)
+	return append(fs, parseVetText(stderr, pkgDir)...), nil
 }
 
 func parseVet(out, pkgDir string) []Finding {
-	var fs []Finding
-	for line := range strings.SplitSeq(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		m := vetLineRE.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		file := m[1]
-		if !filepath.IsAbs(file) {
-			file = filepath.Join(pkgDir, file)
-		}
-		file = filepath.Clean(file)
-		ln, _ := strconv.Atoi(m[2])
-		col, _ := strconv.Atoi(m[3])
-		fs = append(fs, Finding{
-			File:  file,
-			Line:  ln,
-			Col:   col,
-			Class: "error",
-			Tool:  "vet",
-			Msg:   m[4],
-		})
-	}
-	return fs
+	return analysisFindings(parseAnalysisJSON(out), pkgDir, "vet", "error", func(_, msg string) string { return msg })
 }
 
-// Go's own build cache handles vet caching with correct transitive
-// invalidation — so we call runVet directly rather than wrap it.
-
-func filterScope(findings []Finding, scope map[string]bool) []Finding {
-	var out []Finding
-	for _, f := range findings {
-		if scope[f.File] {
-			out = append(out, f)
-		}
+// parseVetText handles "vet: ./x.go:3:2: msg" typecheck lines.
+func parseVetText(out, pkgDir string) []Finding {
+	var b strings.Builder
+	for line := range strings.SplitSeq(out, "\n") {
+		b.WriteString(strings.TrimPrefix(strings.TrimSpace(line), "vet: "))
+		b.WriteByte('\n')
 	}
-	return out
+	return textFindings(b.String(), pkgDir, "vet", "error")
 }

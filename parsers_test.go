@@ -36,32 +36,105 @@ package not found
 	}
 }
 
+func TestParseBuildEvents(t *testing.T) {
+	out := `{"ImportPath":"x","Action":"build-output","Output":"# x\n"}
+{"ImportPath":"x","Action":"build-output","Output":"./main.go:3:26: declared and not used: y\n"}
+{"ImportPath":"x","Action":"build-fail"}
+`
+	fs := parseBuildEvents(out, "/tmp/pkg")
+	if len(fs) != 1 || fs[0].Line != 3 || fs[0].Col != 26 || fs[0].File != "/tmp/pkg/main.go" {
+		t.Fatalf("got %+v", fs)
+	}
+}
+
 func TestParseVet(t *testing.T) {
-	out := `# example.com/pkg
-./main.go:42:9: Printf format %d has arg of type string
-./main.go:77:2: unreachable code
+	out := `{
+	"example.com/pkg": {
+		"printf": [
+			{"posn": "/tmp/pkg/main.go:42:9", "end": "/tmp/pkg/main.go:42:11", "message": "fmt.Printf format %d has arg \"s\" of wrong type string"}
+		],
+		"unreachable": [
+			{"posn": "main.go:77:2", "message": "unreachable code", "suggested_fixes": []}
+		]
+	}
+}
 `
 	fs := parseVet(out, "/tmp/pkg")
 	if len(fs) != 2 {
 		t.Fatalf("expected 2 findings, got %d: %+v", len(fs), fs)
 	}
-	if fs[0].Class != "error" || fs[0].Tool != "vet" {
-		t.Errorf("bad class/tool: %+v", fs[0])
+	if fs[0].Class != "error" || fs[0].Tool != "vet" || fs[0].Line != 42 || fs[0].Col != 9 {
+		t.Errorf("bad finding: %+v", fs[0])
+	}
+	if fs[1].File != "/tmp/pkg/main.go" || fs[1].Line != 77 {
+		t.Errorf("relative posn not anchored: %+v", fs[1])
+	}
+	if fs := parseVet("{}\n", "/tmp"); len(fs) != 0 {
+		t.Errorf("empty tree should yield no findings: %+v", fs)
+	}
+}
+
+func TestParseVetText(t *testing.T) {
+	out := "# x\nvet: ./b.go:3:12: declared and not used: y\n"
+	fs := parseVetText(out, "/tmp/pkg")
+	if len(fs) != 1 || fs[0].File != "/tmp/pkg/b.go" || fs[0].Line != 3 || fs[0].Class != "error" {
+		t.Fatalf("got %+v", fs)
+	}
+}
+
+func TestParsePosn(t *testing.T) {
+	cases := []struct {
+		in   string
+		file string
+		line int
+		col  int
+	}{
+		{"/a/b.go:3:4", "/a/b.go", 3, 4},
+		{"b.go:7", "b.go", 7, 0},
+		{"C:/x/y.go:1:2", "C:/x/y.go", 1, 2},
+		{"-", "-", 0, 0},
+	}
+	for _, c := range cases {
+		f, l, col := parsePosn(c.in)
+		if f != c.file || l != c.line || col != c.col {
+			t.Errorf("%q: got %q %d %d", c.in, f, l, col)
+		}
 	}
 }
 
 func TestParseStaticcheck(t *testing.T) {
-	out := `./main.go:10:2: should check returned error before deferring f.Close() (SA5001)
-./main.go:25:6: func Foo is unused (U1000)
+	out := `{"code":"SA4006","severity":"error","location":{"file":"/tmp/pkg/a.go","line":6,"column":2},"end":{"file":"/tmp/pkg/a.go","line":6,"column":27},"message":"this value of x is never used"}
+{"code":"U1000","severity":"warning","location":{"file":"main.go","line":25,"column":6},"end":{"file":"main.go","line":25,"column":9},"message":"func Foo is unused"}
+{"code":"ST1000","severity":"ignored","location":{"file":"main.go","line":1,"column":1},"end":{"file":"main.go","line":1,"column":1},"message":"at least one file in a package should have a package comment"}
 `
 	fs := parseStaticcheck(out, "/tmp/pkg")
 	if len(fs) != 2 {
-		t.Fatalf("expected 2 findings, got %d: %+v", len(fs), fs)
+		t.Fatalf("expected 2 findings (ignored dropped), got %d: %+v", len(fs), fs)
 	}
 	for _, f := range fs {
 		if f.Class != "warning" || f.Tool != "staticcheck" {
 			t.Errorf("bad class/tool: %+v", f)
 		}
+	}
+	if fs[0].Msg != "this value of x is never used (SA4006)" || fs[0].Line != 6 {
+		t.Errorf("message should carry the check code: %+v", fs[0])
+	}
+	if fs[1].File != "/tmp/pkg/main.go" {
+		t.Errorf("relative file not anchored: %+v", fs[1])
+	}
+}
+
+func TestParseModernize(t *testing.T) {
+	out := `{"x": {"slicescontains": [{"posn": "/tmp/pkg/a.go:15:2", "end": "/tmp/pkg/a.go:19:3", "message": "Loop can be simplified using slices.Contains", "suggested_fixes": [{"message": "Replace loop", "edits": []}]}]}}`
+	fs := parseModernize(out, "/tmp/pkg")
+	if len(fs) != 1 || fs[0].Class != "suggestion" || fs[0].Tool != "modernize" || fs[0].Line != 15 {
+		t.Fatalf("got %+v", fs)
+	}
+	if fs[0].Msg != "Loop can be simplified using slices.Contains (slicescontains; conflicts with another fix, apply by hand)" {
+		t.Errorf("msg: %q", fs[0].Msg)
+	}
+	if fs := parseModernize("", "/tmp"); len(fs) != 0 {
+		t.Errorf("no output should yield no findings")
 	}
 }
 

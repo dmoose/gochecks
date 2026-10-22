@@ -5,14 +5,10 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
-var (
-	modernizeProgressRE = regexp.MustCompile(`applied (\d+) of \d+ fixes`)
-	modernizeSkippedRE  = regexp.MustCompile(`(\d+) of \d+ fixes skipped`)
-)
+var modernizeProgressRE = regexp.MustCompile(`applied (\d+) of \d+ fixes`)
 
 const modernizeMaxIterations = 10
 
@@ -49,30 +45,18 @@ func runModernize(pkgDir string) error {
 	return fmt.Errorf("go fix: exceeded %d iterations in %s", modernizeMaxIterations, pkgDir)
 }
 
-// modernizeConflicts reports fixes that `go fix` refused to apply
-// because they overlap with other pending fixes. Called after
-// runModernize has reached fixed point; returns a single suggestion
-// per package summarizing the unresolved count. These conflicts are
-// real modernize opportunities — the agent (or gopls MCP) needs to
-// resolve them manually.
+// modernizeConflicts lists the fixes `go fix` left unapplied once
+// runModernize reached its fixed point: fixes that overlap another
+// pending fix. Each is a real modernize opportunity the agent has to
+// resolve by hand, so each is reported at its own position.
 func modernizeConflicts(pkgDir string) []Finding {
-	cmd := exec.Command("go", "fix", "-diff", ".")
-	cmd.Dir = pkgDir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	_ = cmd.Run()
-	m := modernizeSkippedRE.FindStringSubmatch(stderr.String())
-	if m == nil {
-		return nil
-	}
-	n, _ := strconv.Atoi(m[1])
-	if n == 0 {
-		return nil
-	}
-	return []Finding{{
-		File:  pkgDir,
-		Class: "suggestion",
-		Tool:  "modernize",
-		Msg:   fmt.Sprintf("%d modernize fix(es) skipped due to conflicts; inspect with: go fix -diff .", n),
-	}}
+	stdout, _ := runTool(pkgDir, "go", "fix", "-json", ".")
+	return parseModernize(stdout, pkgDir)
+}
+
+func parseModernize(out, pkgDir string) []Finding {
+	return analysisFindings(parseAnalysisJSON(out), pkgDir, "modernize", "suggestion",
+		func(analyzer, msg string) string {
+			return msg + " (" + analyzer + "; conflicts with another fix, apply by hand)"
+		})
 }

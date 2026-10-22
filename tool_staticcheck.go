@@ -1,33 +1,31 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
-// staticcheck format: "file:line:col: message (CHECKID)"
-var staticcheckLineRE = regexp.MustCompile(`^(.+?):(\d+):(\d+):\s+(.+)$`)
+// staticcheckDiag is one line of `staticcheck -f json`.
+type staticcheckDiag struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	Location struct {
+		File   string `json:"file"`
+		Line   int    `json:"line"`
+		Column int    `json:"column"`
+	} `json:"location"`
+	Message string `json:"message"`
+}
 
-// staticcheckAvailable returns true if the binary is on PATH. The
-// absence of staticcheck is not an error — it's an optional extra
-// layer that only runs if the user has installed it.
 func staticcheckAvailable() bool {
 	_, err := exec.LookPath("staticcheck")
 	return err == nil
 }
 
 func runStaticcheck(pkgDir string) ([]Finding, error) {
-	cmd := exec.Command("staticcheck", ".")
-	cmd.Dir = pkgDir
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	// staticcheck exits non-zero on findings; not an error for us.
-	_ = cmd.Run()
-	return parseStaticcheck(stdout.String(), pkgDir), nil
+	stdout, stderr := runTool(pkgDir, "staticcheck", "-f", "json", ".")
+	return parseStaticcheck(stdout+stderr, pkgDir), nil
 }
 
 func parseStaticcheck(out, pkgDir string) []Finding {
@@ -36,28 +34,17 @@ func parseStaticcheck(out, pkgDir string) []Finding {
 	}
 	var fs []Finding
 	for line := range strings.SplitSeq(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+		var d staticcheckDiag
+		if json.Unmarshal([]byte(line), &d) != nil || d.Severity == "ignored" || d.Location.File == "" {
 			continue
 		}
-		m := staticcheckLineRE.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		file := m[1]
-		if !filepath.IsAbs(file) {
-			file = filepath.Join(pkgDir, file)
-		}
-		file = filepath.Clean(file)
-		ln, _ := strconv.Atoi(m[2])
-		col, _ := strconv.Atoi(m[3])
 		fs = append(fs, Finding{
-			File:  file,
-			Line:  ln,
-			Col:   col,
+			File:  absIn(pkgDir, d.Location.File),
+			Line:  d.Location.Line,
+			Col:   d.Location.Column,
 			Class: "warning",
 			Tool:  "staticcheck",
-			Msg:   m[4],
+			Msg:   d.Message + " (" + d.Code + ")",
 		})
 	}
 	return fs
