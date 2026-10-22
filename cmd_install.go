@@ -34,6 +34,7 @@ func runInstall(args []string) int {
 		noSkill bool
 		noDoc   bool
 		config  bool
+		lintCfg bool
 	)
 	fs.StringVar(&dir, "dir", ".", "target repo root")
 	fs.BoolVar(&force, "force", false, "overwrite existing files")
@@ -42,6 +43,7 @@ func runInstall(args []string) int {
 	fs.BoolVar(&noSkill, "no-skill", false, "skip .claude/skills/go-current installation")
 	fs.BoolVar(&noDoc, "no-doc", false, "skip .claude/gochecks.md doc drop")
 	fs.BoolVar(&config, "config", false, "also scaffold a default .gochecks.json")
+	fs.BoolVar(&lintCfg, "lint-config", false, "also write the gochecks lint profile as .golangci.yml (never overwrites)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -73,6 +75,12 @@ func runInstall(args []string) int {
 	if config {
 		if err := installConfig(root, force); err != nil {
 			fmt.Fprintln(os.Stderr, "gochecks: install config:", err)
+			return 2
+		}
+	}
+	if lintCfg {
+		if err := installLintConfig(root); err != nil {
+			fmt.Fprintln(os.Stderr, "gochecks: install lint config:", err)
 			return 2
 		}
 	}
@@ -195,4 +203,18 @@ func installConfig(root string, overwrite bool) error {
 		return err
 	}
 	return os.WriteFile(path, append(buf, '\n'), 0o644)
+}
+
+// installLintConfig writes the embedded profile as .golangci.yml. An
+// existing golangci-lint config of any name is left alone; the user's
+// config always wins over the embedded one, so there is nothing to
+// upgrade.
+func installLintConfig(root string) error {
+	for _, name := range lintConfigNames {
+		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
+			fmt.Printf("gochecks: %s already present, left as is\n", filepath.Join(root, name))
+			return nil
+		}
+	}
+	return os.WriteFile(filepath.Join(root, ".golangci.yml"), []byte(lintProfile), 0o644)
 }

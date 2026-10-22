@@ -14,7 +14,8 @@ lines or text.
 golangci-lint runs with the repo's `.golangci.yml` when there is one,
 otherwise with the [profile](./.golangci.yml) built into gochecks:
 the bugs vet and staticcheck miss, idiom fixes that apply mechanically,
-and none of the style cops. Copy it into a repo to tune it there.
+and none of the style cops. `gochecks install --lint-config` copies it
+into a repo to tune there; it never overwrites an existing config.
 
 ## Install
 
@@ -49,7 +50,8 @@ version and health; `doctor --fix` installs or updates them.
 | `show file:line` | source context and vet findings at a position |
 | `doctor [--fix]` | toolchain and tool health |
 | `status` | config in effect and the hook log tail |
-| `install` | wire a repo; `--upgrade` refreshes what install wrote |
+| `install` | wire a repo; `--upgrade` refreshes what install wrote; `--lint-config` adds the profile as `.golangci.yml` |
+| `lint-config` | print the embedded golangci-lint profile |
 
 ## Configuration
 

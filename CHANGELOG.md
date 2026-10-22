@@ -9,6 +9,8 @@
 - gofumpt replaces gofmt when installed; goimports groups the module's
   own imports with `-local`.
 - doctor knows gofumpt.
+- `install --lint-config` writes the profile as `.golangci.yml` when the
+  repo has no golangci config; `lint-config` prints it.
 
 ## 0.7.0
 

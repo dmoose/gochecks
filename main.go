@@ -56,6 +56,9 @@ func dispatch(args []string) int {
 		return runHook(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "lint-config":
+		fmt.Print(lintProfile)
+		return 0
 	case "version", "--version", "-v":
 		fmt.Println("gochecks", versionString())
 		return 0
@@ -79,7 +82,8 @@ Usage:
   gochecks hook
   gochecks status
   gochecks doctor  [--fix] [--offline]
-  gochecks install [--dir .] [--force] [--upgrade] [--no-hook] [--no-skill] [--no-doc] [--config]
+  gochecks install [--dir .] [--force] [--upgrade] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
+  gochecks lint-config
   gochecks version
   gochecks help
 
@@ -99,6 +103,8 @@ Flags for 'fix':
 'doctor' checks the Go toolchain and every tool gochecks drives: present,
         built against the current toolchain, current with its latest
         release, and the repo's hook wiring. --fix runs the installs.
+'lint-config' prints the golangci-lint profile gochecks uses for repos
+        without a .golangci.yml; 'install --lint-config' writes it.
 'hook'  reads a Claude Code PostToolUse event from stdin and checks the
         edited file. Errors go to stderr with exit 2; warnings and
         suggestions return as additionalContext. Wired by 'install'.

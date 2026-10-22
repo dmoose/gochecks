@@ -1,5 +1,5 @@
 # gochecks lint profile. Used as-is for repos that have no .golangci.yml
-# of their own; copy it into a repo to tune it there.
+# of their own; `gochecks install --lint-config` copies it into a repo.
 #
 # Aimed at code written quickly, often by a model: catch the bugs vet
 # and staticcheck miss, apply idiom fixes mechanically, and stay out of

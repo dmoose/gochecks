@@ -292,3 +292,40 @@ func TestCheckWithoutFilesIsAnError(t *testing.T) {
 		t.Errorf("fix with no files: exit %d, want 2", code)
 	}
 }
+
+// --lint-config writes the embedded profile once and never overwrites a
+// golangci config of any name.
+func TestInstallLintConfig(t *testing.T) {
+	dir := t.TempDir()
+	_ = captureStdout(t, func() { runInstall([]string{"--dir", dir, "--no-hook", "--no-skill", "--no-doc", "--lint-config"}) })
+	path := filepath.Join(dir, ".golangci.yml")
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != lintProfile {
+		t.Fatalf("profile not written: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("version: \"2\"\n# mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_ = captureStdout(t, func() {
+		runInstall([]string{"--dir", dir, "--no-hook", "--no-skill", "--no-doc", "--lint-config", "--force"})
+	})
+	if got, _ := os.ReadFile(path); !strings.Contains(string(got), "# mine") {
+		t.Error("existing .golangci.yml was overwritten")
+	}
+
+	other := t.TempDir()
+	if err := os.WriteFile(filepath.Join(other, ".golangci.yaml"), []byte("version: \"2\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_ = captureStdout(t, func() { runInstall([]string{"--dir", other, "--no-hook", "--no-skill", "--no-doc", "--lint-config"}) })
+	if _, err := os.Stat(filepath.Join(other, ".golangci.yml")); err == nil {
+		t.Error("wrote .golangci.yml beside an existing .golangci.yaml")
+	}
+}
+
+func TestLintConfigSubcommand(t *testing.T) {
+	out := captureStdout(t, func() { dispatch([]string{"lint-config"}) })
+	if out != lintProfile || !strings.Contains(out, "version: \"2\"") {
+		t.Error("lint-config should print the embedded profile verbatim")
+	}
+}

@@ -34,6 +34,7 @@ next action.
   rewrite.
 - `.claude/gochecks.md`, this file.
 - `.gochecks.json`, optional; only if you ran `install --config`.
+- `.golangci.yml`, optional; only if you ran `install --lint-config`.
 
 ## Get the most out of it
 
@@ -82,8 +83,9 @@ warning until they are rebuilt.
 ### 3. Keeping your own `.golangci.yml`
 
 Leave its `modernize` linter off: `go fix` modernize (always on in
-gochecks) already covers it. To start from the gochecks profile, copy
-`.golangci.yml` from the gochecks repo.
+gochecks) already covers it. To start from the gochecks profile, run
+`gochecks install --lint-config`; it writes `.golangci.yml` only when
+the repo has no golangci config, and never overwrites one.
 
 ### 4. Verify it's wired
 
