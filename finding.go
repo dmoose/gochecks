@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Finding struct {
@@ -17,9 +18,8 @@ type Finding struct {
 
 func emit(findings []Finding, textOut bool) {
 	if textOut {
-		for _, f := range findings {
-			fmt.Printf("%s:%d:%d:%s:%s: %s\n", f.File, f.Line, f.Col, f.Class, f.Tool, f.Msg)
-		}
+		// Same line form as the hook report, with absolute paths.
+		fmt.Print(strings.TrimPrefix(hookReport(findings, ""), fmt.Sprintf("gochecks: %d finding(s)\n", len(findings))))
 		return
 	}
 	enc := json.NewEncoder(os.Stdout)
