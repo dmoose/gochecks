@@ -37,6 +37,10 @@ var suggestionLinters = map[string]bool{
 	"usestdlibvars": true, "usetesting": true,
 }
 
+// formatterLinters are golangci-lint's formatters. gochecks runs gofumpt
+// and goimports itself, so their findings here would be duplicates.
+var formatterLinters = map[string]bool{"gofmt": true, "gofumpt": true, "goimports": true, "gci": true, "golines": true}
+
 var lintConfigNames = []string{".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json"}
 
 // findLintConfig returns the repo's golangci-lint config, searching from
@@ -72,7 +76,9 @@ func profilePath() (string, error) {
 // embedded profile, with --fix when autoFix is set; the report then
 // holds only what was not fixed.
 func runGolangciLint(pkgDir string, autoFix bool) ([]Finding, error) {
-	args := []string{"run", "--output.json.path=stdout", "--show-stats=false", "--path-mode=abs"}
+	// Packages are checked concurrently; without --allow-parallel-runners
+	// a second golangci-lint waits on the first's lock or gives up.
+	args := []string{"run", "--output.json.path=stdout", "--show-stats=false", "--path-mode=abs", "--allow-parallel-runners"}
 	if findLintConfig(pkgDir) == "" {
 		cfg, err := profilePath()
 		if err != nil {
@@ -107,7 +113,7 @@ func parseGolangciLint(out, pkgDir string) []Finding {
 			return brokenFinding("golangci-lint", pkgDir)
 		}
 		file := is.Pos.Filename
-		if file == "" {
+		if file == "" || formatterLinters[is.FromLinter] {
 			continue
 		}
 		class := "warning"

@@ -211,6 +211,9 @@ func TestParseGolangciLintTrailingText(t *testing.T) {
 	if fs := parseGolangciLint(`{"Issues":[{"FromLinter":"perfsprint","Text":"x","Pos":{"Filename":"a.go","Line":1}}]}`, "/p"); fs[0].Class != "suggestion" {
 		t.Errorf("perfsprint should be a suggestion: %+v", fs[0])
 	}
+	if fs := parseGolangciLint(`{"Issues":[{"FromLinter":"gofumpt","Text":"File is not properly formatted","Pos":{"Filename":"a.go","Line":1}}]}`, "/p"); len(fs) != 0 {
+		t.Errorf("formatter findings are dropped; gochecks formats itself: %+v", fs)
+	}
 }
 
 func TestParseGolangciLintEmpty(t *testing.T) {
