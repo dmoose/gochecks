@@ -103,9 +103,10 @@ doctor       Go toolchain and each tool: installed, built against the
              current toolchain, latest release; the repo's hook wiring.
              --fix installs or updates.
 status       Config in effect and the hook log tail.
-deps         Direct Go modules and copied assets (the assets map in
-             .gochecks.json, file -> npm package) with a newer release,
-             own modules first. --fail exits 1 when anything is behind.
+deps         Direct Go modules, copied assets (the assets map in
+             .gochecks.json, file -> npm package) and version pins in
+             .github/workflows with a newer release, own modules first.
+             --fail exits 1 when anything is behind.
 install      Wire a repo: PostToolUse hook in .claude/settings.json, the
              go-current skill, .claude/gochecks.md. --upgrade refreshes
              those; --config adds .gochecks.json; --lint-config adds the

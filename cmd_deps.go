@@ -26,9 +26,10 @@ type dep struct {
 	Own     bool   `json:"own,omitempty"` // same host and owner as the main module
 }
 
-// runDeps reports direct Go modules and copied assets with a newer
-// release. Modules come from go list -m -u; assets from the manifest in
-// .gochecks.json. Exit 0 unless --fail and something is behind.
+// runDeps reports direct Go modules, copied assets and workflow version
+// pins with a newer release. Modules come from go list -m -u, assets
+// from the manifest in .gochecks.json, pins from .github/workflows.
+// Exit 0 unless --fail and something is behind.
 func runDeps(args []string) int {
 	fs := flag.NewFlagSet("deps", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -76,7 +77,7 @@ func (d dep) text() string {
 	return s
 }
 
-// behindDeps lists modules then assets, own modules first.
+// behindDeps lists modules, then assets, then workflow pins.
 func behindDeps(dir string, cfg Config) ([]dep, error) {
 	mods, err := modulesBehind(dir)
 	if err != nil {
@@ -86,7 +87,24 @@ func behindDeps(dir string, cfg Config) ([]dep, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(mods, assets...), nil
+	wf, err := workflowsBehind(moduleRoot(dir), githubLatestRelease, latestModuleVersion)
+	if err != nil {
+		return nil, err
+	}
+	return append(append(mods, assets...), wf...), nil
+}
+
+// moduleRoot is the directory of the nearest go.mod at or above dir, or
+// dir itself when there is none.
+func moduleRoot(dir string) string {
+	for d := dir; ; d = filepath.Dir(d) {
+		if _, err := os.Stat(filepath.Join(d, "go.mod")); err == nil {
+			return d
+		}
+		if filepath.Dir(d) == d {
+			return dir
+		}
+	}
 }
 
 // goModule is the part of go list -m -u -json read here.
@@ -98,13 +116,18 @@ type goModule struct {
 	Update   *struct{ Version string }
 }
 
+// modulesBehind returns nothing outside a module; assets and workflow
+// pins are still checked there.
 func modulesBehind(dir string) ([]dep, error) {
 	if modulePath(dir) == "" {
-		return nil, errors.New("no go.mod at or above " + dir)
+		return nil, nil
 	}
 	cmd := exec.Command("go", "list", "-m", "-u", "-json", "all")
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod")
+	// GOFLAGS is cleared so a -mod setting from the environment cannot
+	// break the listing. GOWORK=off keeps the listing to this module's
+	// own go.mod inside a workspace.
+	cmd.Env = append(os.Environ(), "GOFLAGS=", "GOWORK=off")
 	out, err := cmd.Output()
 	if err != nil {
 		if ee, ok := errors.AsType[*exec.ExitError](err); ok {

@@ -80,7 +80,7 @@ start it adds one line when dependencies have newer releases.
 | `fix [files]` | `check` with `go fix` modernize first |
 | `show file:line` | source context and vet findings at a position |
 | `doctor [--fix]` | toolchain and analyzer health; `--fix` installs or updates |
-| `deps [--fail]` | direct modules and copied assets with a newer release; `--fail` exits 1 when any |
+| `deps [--fail]` | direct modules, copied assets and workflow pins with a newer release; `--fail` exits 1 when any |
 | `status` | config in effect and the hook log tail |
 | `install` | wire a repo; `--upgrade`, `--config`, `--lint-config` as above |
 | `lint-config` | print the built-in golangci-lint profile |
@@ -189,6 +189,17 @@ with no readable version is listed as `unknown`.
 ```
 module github.com/mark3labs/mcp-go v0.54.0 -> v1.3.0
 asset static/htmx.min.js 2.0.4 -> 2.0.11
+```
+
+Workflow pins come from `.github/workflows/*.yml`: `uses: owner/repo@v5`
+against the action's latest release (a major-only pin is behind only
+when a newer major exists), golangci-lint-action's `version:` against
+the latest golangci-lint, and `go install pkg@vX.Y.Z` for the tools
+gochecks knows. Pins by commit hash are left alone.
+
+```
+workflow actions/setup-go (ci.yml) v5 -> v6.1.0
+workflow golangci-lint (go.yml) v2.12.2 -> v2.15.0
 ```
 
 `deps` exits 0 by default; `--fail` exits 1 when anything is behind,

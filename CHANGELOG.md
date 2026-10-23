@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `deps` also checks version pins in `.github/workflows`: action refs,
+  golangci-lint-action's `version:`, and `go install` of known tools.
+- golangci-lint runs with `--allow-parallel-runners`; its formatter
+  findings are dropped since gochecks runs the formatters itself.
+
 ## 0.8.1 (2026-10-23)
 
 - `deps`: direct Go modules and copied assets with a newer release, own
