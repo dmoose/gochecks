@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 (2026-10-23)
 
 - `deps`: direct Go modules and copied assets with a newer release, own
   modules first; `--fail` for CI. Assets come from an `assets` map in
