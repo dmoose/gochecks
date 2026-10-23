@@ -103,34 +103,32 @@ func installHook(root string, overwrite bool) error {
 		return err
 	}
 
-	hook := map[string]any{
-		"matcher": hookMatcher,
-		"hooks": []any{
-			map[string]any{
-				"type":    "command",
-				"command": hookCommand,
-			},
-		},
-	}
-
+	command := []any{map[string]any{"type": "command", "command": hookCommand}}
 	hooks, _ := existing["hooks"].(map[string]any)
 	if hooks == nil {
 		hooks = map[string]any{}
 	}
-	post, _ := hooks["PostToolUse"].([]any)
-
-	// Replace an existing entry only with --force or --upgrade.
-	idx := findGocheckHook(post)
-	if idx >= 0 {
-		if !overwrite {
-			fmt.Printf("gochecks: hook already present in %s (use --force or --upgrade to replace)\n", settingsPath)
-			return nil
+	present := false
+	for event, entry := range map[string]map[string]any{
+		"PostToolUse":  {"matcher": hookMatcher, "hooks": command},
+		"SessionStart": {"hooks": command},
+	} {
+		list, _ := hooks[event].([]any)
+		// Replace an existing entry only with --force or --upgrade.
+		if idx := findGocheckHook(list); idx >= 0 {
+			if !overwrite {
+				present = true
+				continue
+			}
+			list[idx] = entry
+		} else {
+			list = append(list, entry)
 		}
-		post[idx] = hook
-	} else {
-		post = append(post, hook)
+		hooks[event] = list
 	}
-	hooks["PostToolUse"] = post
+	if present && !overwrite {
+		fmt.Printf("gochecks: hook already present in %s (use --force or --upgrade to replace)\n", settingsPath)
+	}
 	existing["hooks"] = hooks
 
 	buf, err := json.MarshalIndent(existing, "", "  ")

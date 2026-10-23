@@ -1,4 +1,4 @@
-.PHONY: build install uninstall test vet check fmt clean status doctor hook-log ci help
+.PHONY: build install uninstall test vet check fmt clean status doctor deps hook-log ci help
 
 BINARY := gochecks
 GOBIN  := $(shell go env GOPATH)/bin
@@ -33,6 +33,9 @@ status: build ## Dogfood: show gochecks's own status
 
 doctor: build ## Toolchain and tool health
 	./$(BINARY) doctor
+
+deps: build ## Direct modules and copied assets with a newer release
+	./$(BINARY) deps --text
 
 hook-log: ## Tail the hook invocation log
 	tail -f $$(./$(BINARY) status | awk '/^last/{gsub(/[():]/,""); print $$NF; exit}')

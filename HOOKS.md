@@ -16,6 +16,13 @@ the repo it serves.
           { "type": "command", "command": "gochecks hook" }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "gochecks hook" }
+        ]
+      }
     ]
   }
 }
@@ -50,6 +57,18 @@ pkg/a.go:9:2 suggestion/modernize: Loop can be simplified using slices.Contains 
 
 `check` and `fix` keep their own exit codes (0, 1, 2 by highest class)
 for shell and CI use.
+
+## Session start
+
+`install` also wires `gochecks hook` as a SessionStart hook. On that
+event the hook runs `deps` for the session directory and, only when
+something is behind, adds one line of context:
+
+```
+gochecks: 2 dependencies behind: plinth v0.2.0 -> v0.4.0, htmx.min.js 2.0.4 -> 2.0.11 (gochecks deps --text)
+```
+
+Network failures and repos without a go.mod stay silent.
 
 ## Files are rewritten in place
 

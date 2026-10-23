@@ -255,6 +255,10 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 		t.Errorf("gochecks hook entry missing from merged settings: %s", data)
 	}
 
+	if start, _ := hooks["SessionStart"].([]any); len(start) != 1 {
+		t.Errorf("expected 1 SessionStart entry; got %+v", start)
+	}
+
 	skillPath := filepath.Join(dir, ".claude", "skills", "go-current", "SKILL.md")
 	if fi, err := os.Stat(skillPath); err != nil {
 		t.Fatalf("SKILL.md missing after install: %v", err)
@@ -280,6 +284,9 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 	post2, _ := hooks2["PostToolUse"].([]any)
 	if len(post2) != 2 {
 		t.Errorf("second install duplicated entries: got %d, want 2", len(post2))
+	}
+	if start2, _ := hooks2["SessionStart"].([]any); len(start2) != 1 {
+		t.Errorf("second install duplicated SessionStart: got %d, want 1", len(start2))
 	}
 }
 

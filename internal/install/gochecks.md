@@ -25,8 +25,9 @@ next action.
 
 ## Installed by `gochecks install`
 
-- `.claude/settings.json`, PostToolUse hook entry (`gochecks hook`)
-  on `Edit|Write`. The hook reads the event from stdin and ignores
+- `.claude/settings.json`, `gochecks hook` as a PostToolUse entry on
+  `Edit|Write` and as a SessionStart entry that mentions
+  dependencies with a newer release. The hook reads the event from stdin and ignores
   non-Go files itself. Non-destructively merged with any
   pre-existing settings.
 - `.claude/skills/go-current/SKILL.md`, primes Claude to write
@@ -79,6 +80,9 @@ warning until they are rebuilt.
   tool runs. Generated-file comments
   (`// Code generated ... DO NOT EDIT.`) are always skipped
   automatically.
+- `assets`, copied files to check with `gochecks deps`, as
+  `"static/htmx.min.js": "htmx.org"`: path relative to this file,
+  npm package it came from.
 
 ### 3. Keeping your own `.golangci.yml`
 

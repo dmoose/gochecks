@@ -34,6 +34,10 @@ type Config struct {
 	// errcheck and ineffassign are left to it when it runs.
 	Linters *bool `json:"linters,omitempty"`
 
+	// Assets maps copied files, relative to the config file, to the npm
+	// package they came from, for gochecks deps.
+	Assets map[string]string `json:"assets,omitempty"`
+
 	// Path is the config file read, or "" when defaults were used.
 	Path string `json:"-"`
 }

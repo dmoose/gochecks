@@ -10,6 +10,16 @@
         ],
         "matcher": "Edit|Write"
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "gochecks hook",
+            "type": "command"
+          }
+        ]
+      }
     ]
   }
 }

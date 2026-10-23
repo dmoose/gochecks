@@ -35,7 +35,7 @@ gochecks doctor
 ```
 
 `install` adds `gochecks hook` to `.claude/settings.json` as a
-PostToolUse hook on `Edit|Write`, writes the `go-current` skill and a
+PostToolUse hook on `Edit|Write` and a SessionStart hook, writes the `go-current` skill and a
 short `.claude/gochecks.md`, and with `--config` a default
 `.gochecks.json`. `doctor` reports the toolchain and each analyzer's
 version and health; `doctor --fix` installs or updates them.
@@ -50,6 +50,7 @@ version and health; `doctor --fix` installs or updates them.
 | `show file:line` | source context and vet findings at a position |
 | `doctor [--fix]` | toolchain and tool health; `--fix` installs or updates |
 | `status` | config in effect and the hook log tail |
+| `deps [--fail]` | direct modules and copied assets with a newer release, own modules first |
 | `install` | wire a repo; `--upgrade` refreshes what install wrote; `--config` adds `.gochecks.json`; `--lint-config` adds the profile as `.golangci.yml`, never overwriting one |
 | `lint-config` | print the embedded golangci-lint profile |
 | `version` | version, from the release build or the module |
@@ -67,6 +68,7 @@ version and health; `doctor --fix` installs or updates them.
 | `auto_fix` | `false` | also apply `go fix` modernize when nothing blocks |
 | `linters` | `true` | run golangci-lint when installed; it then owns staticcheck, errcheck and ineffassign |
 | `exclude` | `[]` | patterns dropped before any tool runs |
+| `assets` | `{}` | copied files to check with `deps`: path relative to the config, mapped to the npm package it came from |
 
 Vendored and generated files are always skipped.
 

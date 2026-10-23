@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `deps`: direct Go modules and copied assets with a newer release, own
+  modules first; `--fail` for CI. Assets come from an `assets` map in
+  `.gochecks.json` (file path to npm package).
+- `install` wires a SessionStart hook; the hook mentions dependencies
+  that are behind when a session opens.
+
 ## 0.8.0 (2026-10-22)
 
 - golangci-lint runs whenever installed, with the repo's `.golangci.yml`

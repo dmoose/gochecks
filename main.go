@@ -56,6 +56,8 @@ func dispatch(args []string) int {
 		return runHook(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "deps":
+		return runDeps(args[1:])
 	case "lint-config":
 		fmt.Print(lintProfile)
 		return 0
@@ -82,6 +84,7 @@ Usage:
   gochecks show   [--context N] <file:line>
   gochecks doctor [--fix] [--offline]
   gochecks status
+  gochecks deps   [--fail] [--text]
   gochecks install [--dir .] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
   gochecks lint-config
   gochecks version
@@ -100,6 +103,9 @@ doctor       Go toolchain and each tool: installed, built against the
              current toolchain, latest release; the repo's hook wiring.
              --fix installs or updates.
 status       Config in effect and the hook log tail.
+deps         Direct Go modules and copied assets (the assets map in
+             .gochecks.json, file -> npm package) with a newer release,
+             own modules first. --fail exits 1 when anything is behind.
 install      Wire a repo: PostToolUse hook in .claude/settings.json, the
              go-current skill, .claude/gochecks.md. --upgrade refreshes
              those; --config adds .gochecks.json; --lint-config adds the

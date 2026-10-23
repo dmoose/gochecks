@@ -40,6 +40,9 @@ func hook(in io.Reader, out, errw io.Writer) int {
 		_, _ = fmt.Fprintln(errw, "gochecks hook: bad input:", err)
 		return 1
 	}
+	if ev.HookEventName == "SessionStart" {
+		return hookSessionStart(ev, out)
+	}
 	if ev.ToolInput.FilePath == "" {
 		return 0
 	}
@@ -81,7 +84,7 @@ func hook(in io.Reader, out, errw io.Writer) int {
 	var resp hookOutput
 	resp.HookSpecificOutput.HookEventName = "PostToolUse"
 	resp.HookSpecificOutput.AdditionalContext = report
-	_ = json.NewEncoder(out).Encode(resp)
+	writeJSON(out, resp)
 	return 0
 }
 
@@ -104,4 +107,35 @@ func hookReport(findings []Finding, cwd string) string {
 		fmt.Fprintf(&b, "%s:%d:%d %s/%s: %s\n", path, f.Line, f.Col, f.Class, f.Tool, f.Msg)
 	}
 	return b.String()
+}
+
+// hookSessionStart mentions dependencies that are behind, once, when a
+// session opens in a Go repo. Anything that goes wrong stays silent;
+// a session start is not the place to report network trouble.
+func hookSessionStart(ev hookInput, out io.Writer) int {
+	dir := ev.CWD
+	if dir == "" || modulePath(dir) == "" {
+		return 0
+	}
+	cfg, err := loadConfig(dir)
+	if err != nil {
+		return 0
+	}
+	deps, err := behindDeps(dir, cfg)
+	if err != nil || len(deps) == 0 {
+		return 0
+	}
+	invocationFindings = len(deps)
+	var resp hookOutput
+	resp.HookSpecificOutput.HookEventName = "SessionStart"
+	resp.HookSpecificOutput.AdditionalContext = depsSummary(deps)
+	writeJSON(out, resp)
+	return 0
+}
+
+// writeJSON encodes without HTML escaping so "->" stays readable.
+func writeJSON(out io.Writer, v any) {
+	enc := json.NewEncoder(out)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(v)
 }
