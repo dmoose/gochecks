@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.2 (2026-10-24)
 
 - `deps` also checks version pins in `.github/workflows`: action refs,
   golangci-lint-action's `version:`, and `go install` of known tools.
