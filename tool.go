@@ -28,6 +28,8 @@ var analyzers = []analyzer{
 	{name: "errcheck", enabled: func(_ Config, p toolProbes) bool { return p.errcheck }, run: ignoreCfg(runErrcheck)},
 	{name: "ineffassign", enabled: func(_ Config, p toolProbes) bool { return p.ineffassign }, run: ignoreCfg(runIneffassign)},
 	{name: "golangci-lint", enabled: func(_ Config, p toolProbes) bool { return p.golangci }, run: func(d string, c Config) ([]Finding, error) { return runGolangciLint(d, c.AutoFix) }},
+	// Without auto_fix, the rewrites fix would make are suggestions.
+	{name: "modernize", enabled: func(c Config, _ toolProbes) bool { return !c.AutoFix }, run: ignoreCfg(modernizePending)},
 	{name: "test", enabled: func(c Config, _ toolProbes) bool { return c.Test }, run: func(d string, c Config) ([]Finding, error) { return runGoTest(d, c.testTimeout()) }, unscoped: true},
 }
 

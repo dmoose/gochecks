@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -177,5 +179,36 @@ func TestHookReportExactLines(t *testing.T) {
 		"p/ warning/errcheck: built with " + builtWith + ", cannot read this Go toolchain's export data; run `gochecks doctor --fix`\n"
 	if got := resp.HookSpecificOutput.AdditionalContext; got != want {
 		t.Errorf("additionalContext:\ngot  %q\nwant %q", got, want)
+	}
+}
+
+// With auto_fix, the hook modernizes only the edited file and formats
+// what go fix wrote: gofumpt drops the blank line the reverse-loop
+// rewrite leaves. The other file's pending rewrites are not reported
+// as conflicts.
+func TestHookAutoFixScopedAndFormatted(t *testing.T) {
+	hasGo(t)
+	if _, err := exec.LookPath("gofumpt"); err != nil {
+		t.Skip("gofumpt not on PATH")
+	}
+	isolateHome(t)
+	files := maps.Clone(modernizeFixture)
+	files[".gochecks.json"] = `{"auto_fix": true, "linters": false}`
+	dir := writeFixture(t, files)
+	b := filepath.Join(dir, "b.go")
+
+	var out, errw bytes.Buffer
+	if code := hook(strings.NewReader(hookEvent(dir, b)), &out, &errw); code != 0 {
+		t.Fatalf("exit %d; stderr=%q", code, errw.String())
+	}
+	got, _ := os.ReadFile(b)
+	if !strings.Contains(string(got), "range slices.Backward(xs) {\n\t\tt += v") {
+		t.Errorf("b.go not modernized and formatted:\n%s", got)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "a.go")); string(data) != modernizeFixture["a.go"] {
+		t.Errorf("a.go was not edited but changed:\n%s", data)
+	}
+	if strings.Contains(out.String(), "a.go") {
+		t.Errorf("a.go reported: %s", out.String())
 	}
 }

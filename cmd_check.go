@@ -129,13 +129,24 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	// Modernize only a tree with nothing blocking in it.
 	if cfg.AutoFix && !hasBlockingFinding(findings) {
 		for pkgDir := range pkgs {
-			if err := runModernize(pkgDir); err != nil {
+			if err := modernizeAndFormat(pkgDir, scope); err != nil {
 				return nil, fmt.Errorf("auto_fix modernize: %w", err)
 			}
-			findings = append(findings, modernizeConflicts(pkgDir)...)
+			findings = append(findings, filterScope(modernizeConflicts(pkgDir), scope)...)
 		}
 	}
 	return findings, nil
+}
+
+// modernizeAndFormat applies go fix to the files in scope, then formats
+// the ones it changed: a rewrite can leave what the formatter removes,
+// such as a blank first line in a loop body.
+func modernizeAndFormat(pkgDir string, scope map[string]bool) error {
+	changed, err := runModernize(pkgDir, scope)
+	if err != nil || len(changed) == 0 {
+		return err
+	}
+	return applyFormat(changed)
 }
 
 type pkgResult struct {

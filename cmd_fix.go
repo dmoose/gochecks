@@ -55,8 +55,12 @@ func fixFiles(files []string, textOut bool, cfg Config) int {
 
 	// Modernize first, even if warnings remain; the check pass then
 	// reports what go fix could not apply.
+	scope := make(map[string]bool, len(files))
+	for _, f := range files {
+		scope[f] = true
+	}
 	for pkgDir := range groupByPackage(files) {
-		if err := runModernize(pkgDir); err != nil {
+		if err := modernizeAndFormat(pkgDir, scope); err != nil {
 			fmt.Fprintln(os.Stderr, "gochecks: modernize:", err)
 			return 2
 		}

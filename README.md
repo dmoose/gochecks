@@ -16,7 +16,9 @@ What runs, in order:
    profile built into gochecks. Without golangci-lint: staticcheck,
    errcheck and ineffassign, each when installed.
 4. `go test` on the changed packages, when enabled in config.
-5. `go fix` modernize, when enabled in config or via `gochecks fix`.
+5. `go fix` modernize on the changed files only: its rewrites are
+   listed as suggestions, or applied by `gochecks fix` and with
+   `auto_fix`, then formatted again.
 
 Each finding carries file, line, column, a class and the tool:
 
@@ -111,7 +113,7 @@ default:
   per edit. Failures are errors, with the file and line of the first
   `t.Errorf`.
 - `test_timeout`: passed to `go test -timeout`.
-- `auto_fix`: also apply `go fix` modernize to the changed packages when
+- `auto_fix`: also apply `go fix` modernize to the changed files when
   the check found nothing blocking, and run golangci-lint with `--fix`.
   Fixes that modernize could not apply because two of them overlap are
   reported as suggestions at their position.

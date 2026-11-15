@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -548,5 +549,98 @@ func TestTextLineZeroFileFinding(t *testing.T) {
 	out := captureStdout(t, func() { runCheckWith([]string{messy}, true, true, defaultConfig()) })
 	if want := messy + " suggestion/gofmt: needs gofmt\n"; out != want {
 		t.Errorf("got %q, want %q", out, want)
+	}
+}
+
+// A package of two files with modernize rewrites in each; b.go's
+// reverse loop leaves a blank first line after go fix.
+var modernizeFixture = map[string]string{
+	"go.mod": "module fixture\n\ngo 1.27\n",
+	"a.go": `package fixture
+
+import "strings"
+
+func Fields(s string) int {
+	n := 0
+	for _, f := range strings.Split(s, ",") {
+		n += len(f)
+	}
+	return n
+}
+`,
+	"b.go": `package fixture
+
+func Has(xs []string, x string) bool {
+	for _, v := range xs {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
+func Last(xs []int) int {
+	t := 0
+	for i := len(xs) - 1; i >= 0; i-- {
+		v := xs[i]
+		t += v
+	}
+	return t
+}
+`,
+}
+
+// fix rewrites the files it is given and leaves the package's other
+// files alone.
+func TestFixRewritesOnlyNamedFiles(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, modernizeFixture)
+	a, b := filepath.Join(dir, "a.go"), filepath.Join(dir, "b.go")
+	_ = captureStdout(t, func() { runFix([]string{a}) })
+	if got, _ := os.ReadFile(a); !strings.Contains(string(got), "strings.SplitSeq(s, \",\")") {
+		t.Errorf("a.go not modernized:\n%s", got)
+	}
+	if got, _ := os.ReadFile(b); string(got) != modernizeFixture["b.go"] {
+		t.Errorf("b.go was not named but changed:\n%s", got)
+	}
+}
+
+// check lists each rewrite fix would make in the named files, writes
+// nothing, and lists none once fix has run.
+func TestCheckReportsPendingModernize(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, modernizeFixture)
+	b := filepath.Join(dir, "b.go")
+	pending := func() []string {
+		var got []string
+		out := captureStdout(t, func() { runCheckWith([]string{b}, true, false, defaultConfig()) })
+		for _, f := range parseJSONL(t, out) {
+			if f.Tool == "modernize" {
+				if f.Class != "suggestion" || f.File != b {
+					t.Errorf("unexpected %+v", f)
+				}
+				got = append(got, fmt.Sprintf("%d:%d %s", f.Line, f.Col, f.Msg))
+			}
+		}
+		return got
+	}
+	got := pending()
+	want := []string{
+		"4:2 Loop can be simplified using slices.Contains (slicescontains; gochecks fix applies it)",
+		"14:6 backward loop over slice can be modernized using slices.Backward (slicesbackward; gochecks fix applies it)",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("pending:\n got %q\nwant %q", got, want)
+	}
+	for name, content := range modernizeFixture {
+		if data, _ := os.ReadFile(filepath.Join(dir, name)); string(data) != content {
+			t.Errorf("check wrote %s", name)
+		}
+	}
+	_ = captureStdout(t, func() { runFix([]string{b}) })
+	if got := pending(); len(got) != 0 {
+		t.Errorf("after fix, still pending: %q", got)
 	}
 }
