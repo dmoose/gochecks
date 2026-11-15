@@ -100,8 +100,12 @@ func hookReport(findings []Finding, cwd string) string {
 			}
 		}
 		if f.Line == 0 {
-			// Package-level finding: the file is the package directory.
-			fmt.Fprintf(&b, "%s/ %s/%s: %s\n", strings.TrimSuffix(path, "/"), f.Class, f.Tool, f.Msg)
+			// A file-level finding names the file; a package-level
+			// one, such as a broken tool, names the directory.
+			if fi, err := os.Stat(f.File); err == nil && fi.IsDir() {
+				path = strings.TrimSuffix(path, "/") + "/"
+			}
+			fmt.Fprintf(&b, "%s %s/%s: %s\n", path, f.Class, f.Tool, f.Msg)
 			continue
 		}
 		fmt.Fprintf(&b, "%s:%d:%d %s/%s: %s\n", path, f.Line, f.Col, f.Class, f.Tool, f.Msg)

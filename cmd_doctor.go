@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -50,7 +50,7 @@ func runDoctor(args []string) int {
 		fix     bool
 		offline bool
 	)
-	fs.BoolVar(&fix, "fix", false, "install missing, broken, or outdated tools with go install @latest")
+	fs.BoolVar(&fix, "fix", false, "install missing, broken, or outdated tools at @latest, built with the module's Go")
 	fs.BoolVar(&offline, "offline", false, "skip latest-version lookups")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -59,17 +59,22 @@ func runDoctor(args []string) int {
 	cwd, _ := os.Getwd()
 	cfg, _ := loadConfig(cwd)
 
-	goVer, goPath := goToolchain()
+	goVer, goPath, goErr := goToolchain()
 	fmt.Printf("gochecks %s (%s)\n\n", versionString(), selfPath())
 
 	var latestGo string
 	if !offline {
 		latestGo = latestGoRelease()
 	}
-	fmt.Printf("%-14s %-32s %s\n", "go", goVer+"  "+goPath, verdictGo(goVer, latestGo))
+	if goErr != nil {
+		fmt.Printf("%-14s %-32s %s\n", "go", goPath, "cannot read the module's Go: "+goErr.Error())
+	} else {
+		fmt.Printf("%-14s %-32s %s\n", "go", goVer+"  "+goPath, verdictGo(goVer, latestGo))
+	}
 
 	reports := diagnoseTools(goVer, offline)
-	attention := latestGo != "" && goversion.Compare(goVer, latestGo) < 0
+	goOutdated := latestGo != "" && goversion.Compare(goVer, latestGo) < 0
+	attention := goOutdated || goErr != nil
 	var installs []string
 	for _, r := range reports {
 		fmt.Printf("%-14s %-32s %s\n", r.spec.name, describeInstalled(r), verdictTool(r, cfg, goVer))
@@ -86,17 +91,28 @@ func runDoctor(args []string) int {
 		return exitAttention(attention)
 	}
 	fmt.Println()
+	if goErr != nil {
+		// Unpinned, go install builds with the tool's own Go, which
+		// may not read this module's export data.
+		fmt.Println("the module's Go could not be read, so --fix installs nothing.")
+		fmt.Println("unpinned, these may build tools that cannot read its export data:")
+		for _, pkg := range installs {
+			fmt.Println("  " + installCmd("", pkg))
+		}
+		return 1
+	}
 	if !fix {
 		// go install pkg@version takes one module per invocation.
 		fmt.Println("to update, run gochecks doctor --fix, or:")
 		for _, pkg := range installs {
-			fmt.Println("  go install " + pkg)
+			fmt.Println("  " + installCmd(goVer, pkg))
 		}
 		return 1
 	}
 	for _, pkg := range installs {
-		fmt.Printf("go install %s\n", pkg)
+		fmt.Println(installCmd(goVer, pkg))
 		cmd := exec.Command("go", "install", pkg) //nolint:gosec // pkg comes from toolSpecs
+		cmd.Env = installEnv(goVer)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "gochecks doctor: %s: %v\n", pkg, err)
@@ -105,13 +121,39 @@ func runDoctor(args []string) int {
 	}
 	fmt.Println()
 	fmt.Println("re-checking:")
+	attention = goOutdated
+	var still []toolReport
 	for _, r := range diagnoseTools(goVer, offline) {
 		fmt.Printf("%-14s %-32s %s\n", r.spec.name, describeInstalled(r), verdictTool(r, cfg, goVer))
 		if r.needsInstall(cfg) {
 			attention = true
 		}
+		if r.broken {
+			still = append(still, r)
+		}
+	}
+	for _, r := range still {
+		fmt.Printf("\n%s is still broken after installing with %s: %s was built with %s\n", r.spec.name, goVer, r.path, r.installed.goVersion)
 	}
 	return exitAttention(attention)
+}
+
+// installCmd is the go install line doctor suggests and runs. go install
+// pkg@version builds with the Go named in the tool's own go.mod, which
+// can be older than this module's and produce a binary that cannot read
+// its export data; GOTOOLCHAIN pins the build to the module's Go.
+func installCmd(goVer, pkg string) string {
+	if goVer == "" {
+		return "go install " + pkg
+	}
+	return "GOTOOLCHAIN=" + goVer + " go install " + pkg
+}
+
+func installEnv(goVer string) []string {
+	if goVer == "" {
+		return nil
+	}
+	return append(os.Environ(), "GOTOOLCHAIN="+goVer)
 }
 
 func exitAttention(attention bool) int {
@@ -129,17 +171,28 @@ func selfPath() string {
 	return p
 }
 
-// goToolchain reports the version and path of the go on PATH.
-func goToolchain() (ver, path string) {
-	path, err := exec.LookPath("go")
+// goToolchain reports the version of the Go that builds the module in
+// the current directory, per its go and toolchain lines and GOTOOLCHAIN,
+// and the path of the go on PATH. err says why the version could not be
+// read, typically a toolchain that cannot be downloaded.
+func goToolchain() (ver, path string, err error) {
+	path, err = exec.LookPath("go")
 	if err != nil {
-		return "", "not found"
+		return "", "not found", nil //nolint:nilerr // a missing go is reported as MISSING
 	}
-	out, err := exec.Command("go", "env", "GOVERSION").Output()
+	cmd := exec.Command("go", "env", "GOVERSION")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return runtime.Version(), path
+		// The last line holds the error; earlier ones are progress.
+		lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+		if why := lines[len(lines)-1]; why != "" {
+			return "", path, errors.New(why)
+		}
+		return "", path, err
 	}
-	return strings.TrimSpace(string(out)), path
+	return strings.TrimSpace(string(out)), path, nil
 }
 
 // latestGoRelease returns the newest stable toolchain per go.dev, or
@@ -288,7 +341,11 @@ func verdictTool(r toolReport, cfg Config, goVer string) string {
 	case r.path == "":
 		parts = append(parts, "MISSING")
 	case r.broken:
-		parts = append(parts, "BROKEN: built with "+r.installed.goVersion+", cannot read "+goVer+" export data")
+		target := goVer
+		if target == "" {
+			target = "the module's Go"
+		}
+		parts = append(parts, "BROKEN: built with "+r.installed.goVersion+", cannot read "+target+" export data")
 	}
 	if r.outdated() {
 		parts = append(parts, "outdated, latest "+r.latest)

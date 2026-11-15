@@ -32,19 +32,22 @@ func runFix(args []string) int {
 		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
-	if len(files) == 0 {
-		return 0
+	code := 0
+	if len(files) > 0 {
+		cfg, err := loadConfig(filepath.Dir(files[0]))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gochecks: config:", err)
+			return 2
+		}
+		if files = cfg.applyExclude(files); len(files) > 0 {
+			code = fixFiles(files, textOut, cfg)
+		}
 	}
-	cfg, err := loadConfig(filepath.Dir(files[0]))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "gochecks: config:", err)
-		return 2
-	}
-	files = cfg.applyExclude(files)
-	if len(files) == 0 {
-		return 0
-	}
+	return missingExit("fix", raw, code)
+}
 
+// fixFiles formats and modernizes files, then checks them.
+func fixFiles(files []string, textOut bool, cfg Config) int {
 	if err := applyFormat(files); err != nil {
 		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2

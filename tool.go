@@ -145,10 +145,12 @@ func sortFindings(fs []Finding) {
 	})
 }
 
+// filterScope keeps findings in the changed files, and broken-tool
+// findings, which concern no file.
 func filterScope(findings []Finding, scope map[string]bool) []Finding {
 	var out []Finding
 	for _, f := range findings {
-		if scope[f.File] {
+		if f.broken || scope[f.File] {
 			out = append(out, f)
 		}
 	}

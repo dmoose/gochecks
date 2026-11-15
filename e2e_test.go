@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -44,12 +45,22 @@ func writeFixture(t *testing.T, files map[string]string) string {
 
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
-	old := os.Stdout
+	return capture(t, &os.Stdout, fn)
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	return capture(t, &os.Stderr, fn)
+}
+
+func capture(t *testing.T, stream **os.File, fn func()) string {
+	t.Helper()
+	old := *stream
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Stdout = w
+	*stream = w
 	done := make(chan []byte)
 	go func() {
 		var buf bytes.Buffer
@@ -57,7 +68,7 @@ func captureStdout(t *testing.T, fn func()) string {
 		done <- buf.Bytes()
 	}()
 	defer func() {
-		os.Stdout = old
+		*stream = old
 	}()
 	fn()
 	_ = w.Close()
@@ -290,6 +301,52 @@ func TestE2EInstallRoundTrip(t *testing.T) {
 	}
 }
 
+// A path that does not exist is named on stderr and fails the run;
+// the files that do exist are still checked and their findings
+// reported.
+func TestCheckNamesMissingFiles(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, map[string]string{
+		"go.mod":   fixtureGoMod,
+		"messy.go": "package fixture\n\nfunc A()  int {return 1}\n",
+	})
+	messy := filepath.Join(dir, "messy.go")
+	typo := filepath.Join(dir, "mesy.go")
+	other := filepath.Join(dir, "sub", "gone.go")
+
+	var code int
+	var stdout string
+	stderr := captureStderr(t, func() {
+		stdout = captureStdout(t, func() {
+			code = runCheck([]string{"--no-apply", messy, typo, "--changed", other})
+		})
+	})
+	if code != 2 {
+		t.Errorf("exit %d, want 2", code)
+	}
+	for _, p := range []string{typo, other} {
+		if !strings.Contains(stderr, "gochecks check: no such file: "+p+"\n") {
+			t.Errorf("stderr does not name %s: %q", p, stderr)
+		}
+	}
+	var gofmt bool
+	for _, f := range parseJSONL(t, stdout) {
+		gofmt = gofmt || f.File == messy && f.Class == "suggestion"
+	}
+	if !gofmt {
+		t.Errorf("formatting finding in messy.go not reported: %q", stdout)
+	}
+
+	// Only missing files: still exit 2, nothing on stdout.
+	stderr = captureStderr(t, func() {
+		stdout = captureStdout(t, func() { code = runCheck([]string{typo}) })
+	})
+	if code != 2 || stdout != "" || !strings.Contains(stderr, typo) {
+		t.Errorf("only missing: exit %d stdout %q stderr %q", code, stdout, stderr)
+	}
+}
+
 func TestCheckWithoutFilesIsAnError(t *testing.T) {
 	isolateHome(t)
 	if code := runCheck(nil); code != 2 {
@@ -334,5 +391,162 @@ func TestLintConfigSubcommand(t *testing.T) {
 	out := captureStdout(t, func() { dispatch([]string{"lint-config"}) })
 	if out != lintProfile || !strings.Contains(out, "version: \"2\"") {
 		t.Error("lint-config should print the embedded profile verbatim")
+	}
+}
+
+const glBrokenMsg = "Error: can't load config: the Go language version (go1.26) used to build golangci-lint is lower than the targeted Go version (1.27.3)"
+
+// fakeTools puts scripts that print out on stderr and fail ahead of
+// the go toolchain, with nothing else on PATH, and returns that dir.
+func fakeTools(t *testing.T, out string, names ...string) string {
+	t.Helper()
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go toolchain not on PATH")
+	}
+	bin := t.TempDir()
+	script := "#!/bin/sh\necho '" + out + "' >&2\nexit 3\n"
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(bin, n), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+filepath.Dir(goPath))
+	return bin
+}
+
+// buildBrokenTool builds bin/name from Go source: it prints msg and
+// fails unless it was built with Go version works. It returns the Go
+// it was built with.
+func buildBrokenTool(t *testing.T, bin, name, works, msg string) string {
+	t.Helper()
+	src := writeFixture(t, map[string]string{
+		"go.mod":  "module faketool\n\ngo 1.21\n",
+		"main.go": fakeToolSource(works, msg),
+	})
+	cmd := exec.Command("go", "build", "-o", filepath.Join(bin, name), ".") //nolint:gosec // test fixture path
+	cmd.Dir = src
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build fake %s: %v\n%s", name, err, out)
+	}
+	ver := exec.Command("go", "env", "GOVERSION")
+	ver.Dir = src
+	out, err := ver.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func fakeToolSource(works, msg string) string {
+	return fmt.Sprintf(`package main
+
+import (
+	"fmt"
+	"os"
+	"runtime"
+)
+
+func main() {
+	if runtime.Version() == %q {
+		return
+	}
+	fmt.Fprintln(os.Stderr, %q)
+	os.Exit(3)
+}
+`, works, msg)
+}
+
+// Two changed packages, each analyzer broken: one warning per tool,
+// although the warning names no changed file.
+func TestE2ECheckReportsBrokenTools(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, map[string]string{
+		"go.mod": fixtureGoMod,
+		"a.go":   "package fixture\n\nfunc A() int { return 1 }\n",
+		"b/b.go": "package b\n\nfunc B() int { return 2 }\n",
+	})
+	files := []string{filepath.Join(dir, "a.go"), filepath.Join(dir, "b", "b.go")}
+	off := false
+	cases := []struct {
+		name  string
+		out   string
+		tools []string
+		cfg   Config
+		built bool // golangci-lint is a Go binary; check names its Go
+	}{
+		{"golangci-lint", glBrokenMsg, nil, defaultConfig(), true},
+		{"standalone", `-: internal error in importing "fmt" (export data version 5 is greater than maximum supported version 2)`, []string{"staticcheck", "errcheck"}, Config{Linters: &off}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			bin := fakeTools(t, c.out, c.tools...)
+			tools, builtWith := c.tools, ""
+			if c.built {
+				builtWith = buildBrokenTool(t, bin, "golangci-lint", "never", c.out)
+				tools = []string{"golangci-lint"}
+			}
+			var code int
+			out := captureStdout(t, func() { code = runCheckWith(files, true, false, c.cfg) })
+			if code != 1 {
+				t.Errorf("exit %d, want 1", code)
+			}
+			got := map[string]int{}
+			for _, f := range parseJSONL(t, out) {
+				if f.Class != "warning" || !strings.Contains(f.Msg, "run `gochecks doctor --fix`") {
+					t.Errorf("unexpected finding %+v", f)
+				}
+				if builtWith != "" && !strings.HasPrefix(f.Msg, "built with "+builtWith+",") {
+					t.Errorf("message should name %s: %q", builtWith, f.Msg)
+				}
+				got[f.Tool]++
+			}
+			for _, tool := range tools {
+				if got[tool] != 1 {
+					t.Errorf("%s: %d warnings, want 1; output:\n%s", tool, got[tool], out)
+				}
+			}
+		})
+	}
+}
+
+// fix applies to the files that exist, then names the missing ones and
+// exits 2.
+func TestFixNamesMissingFiles(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, map[string]string{
+		"go.mod":  fixtureGoMod,
+		"loop.go": "package fixture\n\nfunc Sum(xs []int) int {\n\tn := 0\n\tfor i := 0; i < len(xs); i++ {\n\t\tn += xs[i]\n\t}\n\treturn n\n}\n",
+	})
+	target := filepath.Join(dir, "loop.go")
+	typo := filepath.Join(dir, "lop.go")
+	var code int
+	stderr := captureStderr(t, func() {
+		_ = captureStdout(t, func() { code = runFix([]string{"--changed", target + "," + typo}) })
+	})
+	if code != 2 || !strings.Contains(stderr, "gochecks fix: no such file: "+typo+"\n") {
+		t.Errorf("exit %d, want 2 and %s named; stderr %q", code, typo, stderr)
+	}
+	if got, _ := os.ReadFile(target); !strings.Contains(string(got), "range xs") {
+		t.Errorf("loop.go not modernized:\n%s", got)
+	}
+}
+
+// A line-0 finding about a file prints the file; only a directory
+// gets a trailing slash.
+func TestTextLineZeroFileFinding(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	fakeTools(t, "")
+	dir := writeFixture(t, map[string]string{
+		"go.mod":   fixtureGoMod,
+		"messy.go": "package fixture\n\nfunc A()  int {return 1}\n",
+	})
+	messy := filepath.Join(dir, "messy.go")
+	out := captureStdout(t, func() { runCheckWith([]string{messy}, true, true, defaultConfig()) })
+	if want := messy + " suggestion/gofmt: needs gofmt\n"; out != want {
+		t.Errorf("got %q, want %q", out, want)
 	}
 }

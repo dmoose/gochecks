@@ -14,6 +14,9 @@ type Finding struct {
 	Class string `json:"class"`
 	Tool  string `json:"tool"`
 	Msg   string `json:"msg"`
+	// broken marks a tool that cannot read this toolchain; such a
+	// finding is not tied to the changed files.
+	broken bool
 }
 
 func emit(findings []Finding, textOut bool) {

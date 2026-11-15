@@ -38,19 +38,44 @@ func runCheck(args []string) int {
 		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
-	if len(files) == 0 {
-		return 0
+	code := 0
+	if len(files) > 0 {
+		cfg, err := loadConfig(filepath.Dir(files[0]))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gochecks: config:", err)
+			return 2
+		}
+		if files = cfg.applyExclude(files); len(files) > 0 {
+			code = runCheckWith(files, noApply, textOut, cfg)
+		}
 	}
-	cfg, err := loadConfig(filepath.Dir(files[0]))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "gochecks: config:", err)
+	return missingExit("check", raw, code)
+}
+
+// missingExit names on stderr each path in raw that does not exist
+// and returns 2 if any, else code. It runs after the files that exist
+// were checked, so a mistyped path neither reads as a clean run nor
+// hides their findings.
+func missingExit(cmd string, raw []string, code int) int {
+	missing := missingFiles(raw)
+	for _, p := range missing {
+		fmt.Fprintf(os.Stderr, "gochecks %s: no such file: %s\n", cmd, p)
+	}
+	if len(missing) > 0 {
 		return 2
 	}
-	files = cfg.applyExclude(files)
-	if len(files) == 0 {
-		return 0
+	return code
+}
+
+// missingFiles returns the paths in raw that do not exist, as given.
+func missingFiles(raw []string) []string {
+	var out []string
+	for _, p := range raw {
+		if _, err := os.Stat(p); errors.Is(err, os.ErrNotExist) {
+			out = append(out, p)
+		}
 	}
-	return runCheckWith(files, noApply, textOut, cfg)
+	return out
 }
 
 func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
@@ -157,7 +182,7 @@ func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config
 		}
 		findings = append(findings, r.findings...)
 	}
-	return findings, nil
+	return collapseBroken(findings), nil
 }
 
 type toolProbes struct {
