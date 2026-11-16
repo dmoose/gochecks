@@ -96,8 +96,9 @@ check        Formats with gofumpt (or gofmt) and goimports, then runs go
              build, go vet and the installed analyzers (staticcheck,
              errcheck, ineffassign, golangci-lint) on the changed packages.
              Findings outside the changed files are dropped. Exit 0, 1 or 2
-             by highest class. --no-apply reports formatting instead.
-fix          check, plus go fix modernize on the changed packages first.
+             by highest class. --no-apply writes nothing and reports what
+             would be applied, whatever auto_fix says.
+fix          check, plus go fix modernize on the changed files first.
 show         Source context and vet findings at file:line.
 doctor       Go toolchain and each tool: installed, built against the
              current toolchain, latest release; the repo's hook wiring.

@@ -644,3 +644,65 @@ func TestCheckReportsPendingModernize(t *testing.T) {
 		t.Errorf("after fix, still pending: %q", got)
 	}
 }
+
+// check --no-apply writes nothing even with auto_fix on: the go fix
+// rewrite and golangci-lint's autofix are reported instead. The hook,
+// which never passes --no-apply, still applies both.
+func TestCheckNoApplyWritesNothing(t *testing.T) {
+	hasGo(t)
+	if _, err := exec.LookPath("golangci-lint"); err != nil {
+		t.Skip("golangci-lint not on PATH")
+	}
+	isolateHome(t)
+	files := map[string]string{
+		"go.mod":         "module fixture\n\ngo 1.27\n",
+		".gochecks.json": `{"auto_fix": true}`,
+		"a.go": `package fixture
+
+import (
+	"fmt"
+	"strings"
+)
+
+func Fields(s string) int {
+	n := 0
+	for _, f := range strings.Split(s, ",") {
+		n += len(f)
+	}
+	return n
+}
+
+func Label(n int) string {
+	return fmt.Sprintf("%d", n)
+}
+`,
+	}
+	dir := writeFixture(t, files)
+	a := filepath.Join(dir, "a.go")
+
+	var code int
+	out := captureStdout(t, func() { code = runCheck([]string{"--no-apply", a}) })
+	for name, content := range files {
+		if data, _ := os.ReadFile(filepath.Join(dir, name)); string(data) != content {
+			t.Errorf("check --no-apply wrote %s:\n%s", name, data)
+		}
+	}
+	var got []string
+	for _, f := range parseJSONL(t, out) {
+		got = append(got, fmt.Sprintf("%d:%d %s/%s", f.Line, f.Col, f.Class, f.Tool))
+	}
+	slices.Sort(got)
+	want := []string{"10:20 suggestion/modernize", "17:9 suggestion/golangci-lint/perfsprint"}
+	if code != 0 || !slices.Equal(got, want) {
+		t.Errorf("exit %d; findings %q, want %q", code, got, want)
+	}
+
+	var hout, herr bytes.Buffer
+	if code := hook(strings.NewReader(hookEvent(dir, a)), &hout, &herr); code != 0 {
+		t.Fatalf("hook exit %d; stderr=%q", code, herr.String())
+	}
+	data, _ := os.ReadFile(a)
+	if !strings.Contains(string(data), "strings.SplitSeq(s, \",\")") || !strings.Contains(string(data), "strconv.Itoa(n)") {
+		t.Errorf("hook with auto_fix did not apply both fixes:\n%s", data)
+	}
+}

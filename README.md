@@ -78,7 +78,7 @@ start it adds one line when dependencies have newer releases.
 | Command | |
 |---|---|
 | `hook` | hook entry point; reads the Claude Code event from stdin |
-| `check [files]` | format, build, vet, analyzers; exit 0, 1 or 2 by highest class; `--no-apply` reports formatting instead of applying it |
+| `check [files]` | format, build, vet, analyzers; exit 0, 1 or 2 by highest class; `--no-apply` writes nothing and reports what it would apply, even with `auto_fix` |
 | `fix [files]` | `check` with `go fix` modernize first |
 | `show file:line` | source context and vet findings at a position |
 | `doctor [--fix]` | toolchain and analyzer health; `--fix` installs or updates |

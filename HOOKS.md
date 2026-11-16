@@ -75,7 +75,8 @@ Network failures and repos without a go.mod stay silent.
 `gochecks hook` and `check` run `gofmt -s -w` and `goimports -w` on the
 changed files before anything else, so the hook can rewrite a file the
 model just wrote. Claude Code refreshes its view on the next read or
-edit. `check --no-apply` reports formatting as suggestions instead, for
+edit. `check --no-apply` writes nothing, `auto_fix` included, and reports
+formatting, modernize rewrites and lint fixes as findings instead, for
 CI.
 
 ## Skipped files

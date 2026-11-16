@@ -20,7 +20,7 @@ func runCheck(args []string) int {
 		textOut     bool
 	)
 	fs.StringVar(&changedFlag, "changed", "", "whitespace- or comma-separated list of changed files")
-	fs.BoolVar(&noApply, "no-apply", false, "report formatting instead of fixing it")
+	fs.BoolVar(&noApply, "no-apply", false, "write nothing; report what would be applied")
 	fs.BoolVar(&textOut, "text", false, "human-readable text output (default: JSON lines)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -91,8 +91,15 @@ func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
 
 // check formats (or reports formatting for) files, then runs the
 // per-package analyzers and returns the scoped findings.
+//
+// noApply writes nothing: formatting is reported, and auto_fix is off,
+// so golangci-lint runs without --fix and modernize rewrites are listed
+// instead of applied.
 func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	var findings []Finding
+	if noApply {
+		cfg.AutoFix = false
+	}
 
 	if noApply {
 		fmtFindings, err := runGofmt(files, false)

@@ -66,15 +66,24 @@ func runDoctor(args []string) int {
 	if !offline {
 		latestGo = latestGoRelease()
 	}
+	// A newer patch than the one the module pins, with the pin running,
+	// is moved by editing the module, not by doctor: shown, not counted.
+	goOutdated := goErr == nil && latestGo != "" && goversion.Compare(goVer, latestGo) < 0
+	var pinFile string
+	if goOutdated {
+		if pin, file := goPin(); pin != "" && pin == goVer {
+			pinFile = file
+		}
+	}
+	goAttention := goOutdated && pinFile == ""
 	if goErr != nil {
 		fmt.Printf("%-14s %-32s %s\n", "go", goPath, "cannot read the module's Go: "+goErr.Error())
 	} else {
-		fmt.Printf("%-14s %-32s %s\n", "go", goVer+"  "+goPath, verdictGo(goVer, latestGo))
+		fmt.Printf("%-14s %-32s %s\n", "go", goVer+"  "+goPath, verdictGo(goVer, latestGo, pinFile))
 	}
 
 	reports := diagnoseTools(goVer, offline)
-	goOutdated := latestGo != "" && goversion.Compare(goVer, latestGo) < 0
-	attention := goOutdated || goErr != nil
+	attention := goAttention || goErr != nil
 	var installs []string
 	for _, r := range reports {
 		fmt.Printf("%-14s %-32s %s\n", r.spec.name, describeInstalled(r), verdictTool(r, cfg, goVer))
@@ -121,7 +130,7 @@ func runDoctor(args []string) int {
 	}
 	fmt.Println()
 	fmt.Println("re-checking:")
-	attention = goOutdated
+	attention = goAttention
 	var still []toolReport
 	for _, r := range diagnoseTools(goVer, offline) {
 		fmt.Printf("%-14s %-32s %s\n", r.spec.name, describeInstalled(r), verdictTool(r, cfg, goVer))
@@ -195,9 +204,53 @@ func goToolchain() (ver, path string, err error) {
 	return strings.TrimSpace(string(out)), path, nil
 }
 
+// goPin returns the exact toolchain the current module pins and the
+// name of the file that pins it: go.work when one is in use, else
+// go.mod, as goToolchain reads. The pin is the newer of the go and
+// toolchain lines. A go line naming only a language version, such as
+// 1.27, never equals a running toolchain, so it pins nothing.
+func goPin() (pin, file string) {
+	out, err := exec.Command("go", "env", "GOWORK", "GOMOD").Output()
+	if err != nil {
+		return "", ""
+	}
+	for p := range strings.SplitSeq(string(out), "\n") {
+		p = strings.TrimSpace(p)
+		if p == "" || p == "off" || p == os.DevNull {
+			continue
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return "", ""
+		}
+		for line := range strings.SplitSeq(string(data), "\n") {
+			f := strings.Fields(line)
+			if len(f) < 2 {
+				continue
+			}
+			var v string
+			switch f[0] {
+			case "go":
+				v = "go" + f[1]
+			case "toolchain":
+				v = f[1]
+			default:
+				continue
+			}
+			if goversion.IsValid(v) && goversion.Compare(v, pin) > 0 {
+				pin = v
+			}
+		}
+		return pin, filepath.Base(p)
+	}
+	return "", ""
+}
+
 // latestGoRelease returns the newest stable toolchain per go.dev, or
-// "" on any failure.
-func latestGoRelease() string {
+// "" on any failure. A variable so tests can stand in for go.dev.
+var latestGoRelease = fetchLatestGoRelease
+
+func fetchLatestGoRelease() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://go.dev/dl/?mode=json", nil)
@@ -224,12 +277,16 @@ func latestGoRelease() string {
 	return ""
 }
 
-func verdictGo(have, latest string) string {
+// verdictGo describes the running Go; pinFile names the file that pins
+// it when it is outdated on purpose.
+func verdictGo(have, latest, pinFile string) string {
 	switch {
 	case have == "":
 		return "MISSING"
 	case latest == "":
 		return "ok"
+	case goversion.Compare(have, latest) < 0 && pinFile != "":
+		return "outdated, latest " + latest + " (pinned by " + pinFile + ")"
 	case goversion.Compare(have, latest) < 0:
 		return "outdated, latest " + latest + " (https://go.dev/dl)"
 	default:

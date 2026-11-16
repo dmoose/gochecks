@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	goversion "go/version"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -288,5 +289,65 @@ func TestDoctorUnreadableModuleGo(t *testing.T) {
 	report := captureStdout(t, func() { code = runDoctor([]string{"--offline"}) })
 	if code != 1 || !strings.Contains(report, "cannot read the module's Go") {
 		t.Errorf("all tools fine: exit %d, want 1, in:\n%s", code, report)
+	}
+}
+
+// A newer Go patch than the one the module pins, with the pin running,
+// is shown but is not attention. A go line naming only a language
+// version, or a pin newer than the Go running, still is. go.dev is
+// faked; module lookups fail fast with GOPROXY=off.
+func TestDoctorPinnedGoPatch(t *testing.T) {
+	hasGo(t)
+	cmd := exec.Command("go", "env", "GOVERSION")
+	cmd.Dir = writeFixture(t, map[string]string{"go.mod": "module probe\n\ngo 1.21\n"})
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := strings.TrimSpace(string(out))
+	if goversion.Lang(local) == local {
+		t.Skipf("local Go %s is not a patch release", local)
+	}
+	lang := strings.TrimPrefix(goversion.Lang(local), "go")
+	exact := strings.TrimPrefix(local, "go")
+	const latest = "go1.99.0"
+	old := latestGoRelease
+	latestGoRelease = func() string { return latest }
+	t.Cleanup(func() { latestGoRelease = old })
+
+	var names []string
+	for _, s := range toolSpecs {
+		names = append(names, s.name)
+	}
+	fakeTools(t, "", names...)
+	t.Setenv("GOPROXY", "off")
+	t.Setenv("GOWORK", "")
+
+	cases := []struct {
+		name, toolchain string
+		files           map[string]string
+		want            string
+		code            int
+	}{
+		{"go line pins", "auto", map[string]string{"go.mod": "module m\n\ngo " + exact + "\n"}, "(pinned by go.mod)", 0},
+		{"language only", "auto", map[string]string{"go.mod": "module m\n\ngo " + lang + "\n"}, "(https://go.dev/dl)", 1},
+		{"toolchain line pins", "auto", map[string]string{"go.mod": "module m\n\ngo " + lang + "\n\ntoolchain " + local + "\n"}, "(pinned by go.mod)", 0},
+		{"running older than pin", "local", map[string]string{"go.mod": "module m\n\ngo " + lang + "\n\ntoolchain go" + lang + ".99\n"}, "(https://go.dev/dl)", 1},
+		{"go.work pins", "auto", map[string]string{
+			"go.work": "go " + exact + "\n\nuse .\n",
+			"go.mod":  "module m\n\ngo " + lang + "\n",
+		}, "(pinned by go.work)", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv("GOTOOLCHAIN", c.toolchain)
+			t.Chdir(writeFixture(t, c.files))
+			var code int
+			report := captureStdout(t, func() { code = runDoctor(nil) })
+			want := local + "  "
+			if !strings.Contains(report, want) || !strings.Contains(report, "outdated, latest "+latest+" "+c.want) || code != c.code {
+				t.Errorf("exit %d, want %d and %q in:\n%s", code, c.code, c.want, report)
+			}
+		})
 	}
 }
