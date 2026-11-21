@@ -13,7 +13,9 @@ background before the next agent turn and does four things:
 3. **Runs probed bug detectors** when their binaries are on PATH:
    `staticcheck`, `errcheck`, `ineffassign`. Silent when absent.
 4. **Scope-filters findings** to the files the agent actually
-   touched, no noise from unrelated packages.
+   touched, no noise from unrelated packages. Build errors are the
+   exception: any file of a changed package that no longer compiles
+   is reported, since the change broke it.
 
 ## Why
 
@@ -42,8 +44,11 @@ next action.
 ## The Stop check (with `install --stop`)
 
 Before a turn ends, every `.go` file that differs from HEAD or is
-untracked is checked, edits made through Bash included. Errors and
-warnings keep the turn going until they are fixed.
+untracked is checked, edits made through Bash included: its package is
+built and vetted and the installed linters run. Errors and warnings
+keep the turn going until they are fixed; stopping again reruns the
+check. It does not run go test unless `"test": true`, and it does not
+build the packages that import the changed ones.
 
 - Touching a file means owning every finding in it, whoever wrote the
   line. "Pre-existing" is not a reason to leave one.

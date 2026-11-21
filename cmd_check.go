@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -79,24 +80,28 @@ func missingFiles(raw []string) []string {
 }
 
 func runCheckWith(files []string, noApply, textOut bool, cfg Config) int {
-	findings, err := check(files, noApply, cfg)
+	findings, skipped, err := check(files, noApply, cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}
 	invocationFindings = len(findings)
 	emit(findings, textOut)
+	if textOut {
+		cwd, _ := os.Getwd()
+		fmt.Print(skippedNote(skipped, cwd, cfg))
+	}
 	return exitFor(findings)
 }
 
 // check formats (or reports formatting for) files, then runs the
-// per-package analyzers and returns the scoped findings.
+// per-package analyzers and returns the scoped findings, and the
+// packages whose analyzers did not run because they do not compile.
 //
 // noApply writes nothing: formatting is reported, and auto_fix is off,
 // so golangci-lint runs without --fix and modernize rewrites are listed
 // instead of applied.
-func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
-	var findings []Finding
+func check(files []string, noApply bool, cfg Config) (findings []Finding, skipped []string, err error) {
 	if noApply {
 		cfg.AutoFix = false
 	}
@@ -104,7 +109,7 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	if noApply {
 		fmtFindings, err := runGofmt(files, false)
 		if err != nil {
-			return nil, fmt.Errorf("gofmt: %w", err)
+			return nil, nil, fmt.Errorf("gofmt: %w", err)
 		}
 		findings = append(findings, fmtFindings...)
 
@@ -113,14 +118,14 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 		case errors.Is(err, errGoimportsMissing):
 			fmt.Fprintln(os.Stderr, goimportsMissingNote)
 		case err != nil:
-			return nil, fmt.Errorf("goimports: %w", err)
+			return nil, nil, fmt.Errorf("goimports: %w", err)
 		default:
 			findings = append(findings, impFindings...)
 		}
 	} else {
 		fs, err := applyFormat(files)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		findings = append(findings, fs...)
 	}
@@ -131,9 +136,9 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	}
 
 	pkgs := groupByPackage(files)
-	pkgFindings, err := analyzePackages(pkgs, scope, cfg)
+	pkgFindings, skipped, err := analyzePackages(pkgs, scope, cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	findings = append(findings, pkgFindings...)
 
@@ -142,12 +147,12 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	if cfg.AutoFix && !hasBlockingFinding(findings) {
 		for pkgDir := range pkgs {
 			if err := modernizeAndFormat(pkgDir, scope); err != nil {
-				return nil, fmt.Errorf("auto_fix modernize: %w", err)
+				return nil, nil, fmt.Errorf("auto_fix modernize: %w", err)
 			}
 			findings = append(findings, filterScope(modernizeConflicts(pkgDir), scope)...)
 		}
 	}
-	return findings, nil
+	return findings, skipped, nil
 }
 
 // modernizeAndFormat applies go fix to the files in scope, then formats
@@ -164,11 +169,14 @@ func modernizeAndFormat(pkgDir string, scope map[string]bool) error {
 
 type pkgResult struct {
 	findings []Finding
-	err      error
+	pkgDir   string
+	// skipped: the package does not compile, so its analyzers did not run.
+	skipped bool
+	err     error
 }
 
 // analyzePackages runs the analyzers per package, NumCPU at a time.
-func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config) ([]Finding, error) {
+func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config) ([]Finding, []string, error) {
 	probes := toolProbes{
 		staticcheck: staticcheckAvailable(),
 		errcheck:    errcheckAvailable(),
@@ -200,14 +208,65 @@ func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config
 	close(results)
 
 	var findings []Finding
+	var skipped []string
 	for r := range results {
 		if r.err != nil {
-			return nil, r.err
+			return nil, nil, r.err
 		}
 		findings = append(findings, r.findings...)
+		if r.skipped {
+			skipped = append(skipped, r.pkgDir)
+		}
 	}
+	slices.Sort(skipped)
 	findings = append(findings, lintersMissing(cfg)...)
-	return dedupeFailed(collapseBroken(findings)), nil
+	return dedupeFailed(collapseBroken(dropGovetDupes(findings))), skipped, nil
+}
+
+// dropGovetDupes drops golangci-lint's govet finding where go vet, which
+// always runs, reported the same position and message. vet's is kept.
+func dropGovetDupes(findings []Finding) []Finding {
+	type key struct {
+		file      string
+		line, col int
+		msg       string
+	}
+	vet := map[key]bool{}
+	for _, f := range findings {
+		if f.Tool == "vet" {
+			vet[key{f.File, f.Line, f.Col, f.Msg}] = true
+		}
+	}
+	out := findings[:0]
+	for _, f := range findings {
+		if f.Tool == "golangci-lint/govet" {
+			// govet prefixes the analyzer: "printf: fmt.Printf format ..."
+			_, msg, _ := strings.Cut(f.Msg, ": ")
+			if vet[key{f.File, f.Line, f.Col, msg}] || vet[key{f.File, f.Line, f.Col, f.Msg}] {
+				continue
+			}
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// skippedNote says which packages vet and the linters did not run on
+// because they do not compile, so a report with build errors is not
+// read as the whole story. Paths are relative to cwd.
+func skippedNote(skipped []string, cwd string, cfg Config) string {
+	if len(skipped) == 0 {
+		return ""
+	}
+	dirs := make([]string, len(skipped))
+	for i, d := range skipped {
+		dirs[i] = relPath(d, cwd) + "/"
+	}
+	what := "vet and the linters"
+	if cfg.Test {
+		what = "vet, the linters and go test"
+	}
+	return fmt.Sprintf("%s did not run on %s: it does not compile. They run once it does.\n", what, strings.Join(dirs, ", "))
 }
 
 // lintersMissing is a warning when the config asks for golangci-lint
@@ -231,12 +290,13 @@ type toolProbes struct {
 }
 
 func analyzeOne(pkgDir string, scope map[string]bool, cfg Config, p toolProbes) pkgResult {
-	var r pkgResult
+	r := pkgResult{pkgDir: pkgDir}
 	build := runBuild(pkgDir)
-	r.findings = filterScope(build, scope)
+	r.findings = buildInScope(build, pkgDir, scope)
 	// Analyzers on a package that does not compile only repeat the
-	// type errors.
+	// type errors. A module go refuses to load has its own finding.
 	if len(build) > 0 {
+		r.skipped = !build[0].failed
 		return r
 	}
 	for _, a := range analyzers {
@@ -254,6 +314,20 @@ func analyzeOne(pkgDir string, scope map[string]bool, cfg Config, p toolProbes) 
 		r.findings = append(r.findings, fs...)
 	}
 	return r
+}
+
+// buildInScope keeps the build errors in any file of pkgDir, changed
+// or not: a change that breaks a caller elsewhere in its own package
+// leaves nothing checked, and is the changer's to fix. Errors in other
+// packages are scoped as usual.
+func buildInScope(build []Finding, pkgDir string, scope map[string]bool) []Finding {
+	var out []Finding
+	for _, f := range build {
+		if f.failed || scope[f.File] || filepath.Dir(f.File) == pkgDir {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 func hasBlockingFinding(findings []Finding) bool {

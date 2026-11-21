@@ -31,6 +31,9 @@ type sessionState struct {
 	// Pending holds suggestions from the last stop, for the next
 	// prompt: context added at Stop would keep the turn going.
 	Pending string `json:"pending,omitempty"`
+	// Guided is set once the session has been given stopGuidance;
+	// later blocks get stopReminder.
+	Guided bool `json:"guided,omitempty"`
 }
 
 // allowGrant is a one-shot pass for one session and blocking set.
@@ -101,47 +104,55 @@ func blockHash(fs []Finding) string {
 }
 
 // stopFindings runs check --no-apply on the changed Go files of the
-// repos a Stop run covers, one run per config.
-func stopFindings(cwd string) ([]Finding, error) {
+// repos a Stop run covers, one run per config. note says which packages
+// were not fully checked because they do not compile.
+func stopFindings(cwd string) (all []Finding, note string, err error) {
+	var notes strings.Builder
 	var raw []string
 	for _, repo := range stopRepos(cwd) {
 		raw = append(raw, changedGoFiles(repo)...)
 	}
 	files, err := resolveChanged(raw)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	groups := map[string][]string{}
 	cfgs := map[string]Config{}
 	for _, f := range files {
 		cfg, err := loadConfig(filepath.Dir(f))
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		groups[cfg.Path] = append(groups[cfg.Path], f)
 		cfgs[cfg.Path] = cfg
 	}
-	var all []Finding
 	for _, key := range slices.Sorted(maps.Keys(groups)) {
 		cfg := cfgs[key]
 		group := cfg.applyExclude(groups[key])
 		if len(group) == 0 {
 			continue
 		}
-		fs, err := check(group, true, cfg)
+		fs, skipped, err := check(group, true, cfg)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		all = append(all, fs...)
+		notes.WriteString(skippedNote(skipped, cwd, cfg))
 	}
-	return all, nil
+	return all, notes.String(), nil
 }
 
-const stopGuidance = `Fix these before stopping. Touching a file means owning every finding
+// stopGuidance follows the first block in a session; stopReminder the
+// ones after it.
+const (
+	stopGuidance = `Fix these before stopping. Touching a file means owning every finding
 in it, whoever wrote the line: "not mine" only means "not in my context".
-If a finding looks wrong, do not silence it; stop and ask the user, who
-can release this stop with: gochecks allow "<reason>"
+After fixing, stop again: this check reruns, so there is no need to run
+go build or go vet to confirm. If a finding looks wrong, do not silence
+it; ask the user, who can release this stop with: gochecks allow "<reason>"
 `
+	stopReminder = "Fix these and stop again; if one looks wrong, ask the user to run: gochecks allow \"<reason>\"\n"
+)
 
 // hookStop blocks the end of a turn while files changed since HEAD
 // have errors or warnings. See HOOKS.md for the protocol.
@@ -155,7 +166,7 @@ func hookStop(ev hookInput, errw io.Writer) int {
 		_, _ = fmt.Fprintln(errw, "gochecks hook: git not on PATH; the Stop check cannot see changed files")
 		return 1
 	}
-	findings, err := stopFindings(ev.CWD)
+	findings, note, err := stopFindings(ev.CWD)
 	if err != nil {
 		_, _ = fmt.Fprintln(errw, "gochecks hook:", err)
 		return 1
@@ -204,10 +215,14 @@ func hookStop(ev hookInput, errw io.Writer) int {
 		save()
 		return 0
 	}
-	st.LastBlock, st.Count, st.BlockedAt = h, len(blocking), time.Now().UTC()
+	guidance := stopReminder
+	if !st.Guided {
+		guidance = stopGuidance
+	}
+	st.LastBlock, st.Count, st.BlockedAt, st.Guided = h, len(blocking), time.Now().UTC(), true
 	save()
-	_, _ = fmt.Fprint(errw, strings.Replace(hookReport(blocking, ev.CWD), "finding(s)", "blocking finding(s) in files changed since HEAD", 1))
-	_, _ = fmt.Fprint(errw, stopGuidance)
+	_, _ = fmt.Fprint(errw, strings.Replace(hookReport(blocking, ev.CWD), "finding(s)", "blocking finding(s) from checking the files changed since HEAD", 1))
+	_, _ = fmt.Fprint(errw, note+guidance)
 	return 2
 }
 
@@ -245,6 +260,26 @@ func hookPrompt(ev hookInput, out io.Writer) int {
 	}
 	writeContext(out, "UserPromptSubmit", b.String())
 	return 0
+}
+
+// coverageNote tells the agent at session start what gochecks runs on
+// its behalf where the Stop hook is wired, so it does not run the same
+// checks itself, and what is left to it, so it does not skip those.
+func coverageNote(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, ".claude", "settings.json"))
+	if err != nil || !hasHookEntry(data, "Stop") {
+		return ""
+	}
+	tests := "go test (not enabled in .gochecks.json)"
+	if modulePath(dir) == "" {
+		tests = "go test, except in modules whose .gochecks.json sets \"test\": true"
+	} else if cfg, err := loadConfig(dir); err == nil && cfg.Test {
+		tests = "tests of packages you did not change (go test runs on the changed ones)"
+	}
+	return "gochecks checks your Go changes for you: after each Edit or Write of a .go file, and on every changed .go file when you stop " +
+		"(Bash edits included), it builds and vets that file's package, runs the installed linters, and reports findings in the changed files (and build errors anywhere in their packages). " +
+		"Edit and Write also format the file. No need to run go build, go vet or a linter to check those files. " +
+		"Still yours: " + tests + ", building the packages that import the ones you changed (after changing an exported API), and running the program.\n"
 }
 
 // unresolvedIn returns the reminder for a session that ended in dir

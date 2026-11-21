@@ -73,17 +73,23 @@ func hook(in io.Reader, out, errw io.Writer) int {
 		return 0
 	}
 
-	findings, err := check(files, false, cfg)
+	findings, skipped, err := check(files, false, cfg)
 	if err != nil {
 		_, _ = fmt.Fprintln(errw, "gochecks hook:", err)
 		return 1
 	}
 	invocationFindings = len(findings)
+	note := skippedNote(skipped, ev.CWD, cfg)
 	if len(findings) == 0 {
+		// The package does not compile, but not in this file: say so
+		// rather than read as clean.
+		if note != "" {
+			writeContext(out, "PostToolUse", "gochecks: "+note)
+		}
 		return 0
 	}
 
-	report := hookReport(findings, ev.CWD)
+	report := hookReport(findings, ev.CWD) + note
 	if exitFor(findings) == 2 {
 		_, _ = fmt.Fprint(errw, report)
 		return 2
@@ -95,17 +101,22 @@ func hook(in io.Reader, out, errw io.Writer) int {
 	return 0
 }
 
+// relPath is path relative to cwd when it is inside cwd, else path.
+func relPath(path, cwd string) string {
+	if cwd != "" {
+		if rel, err := filepath.Rel(cwd, path); err == nil && !strings.HasPrefix(rel, "..") {
+			return rel
+		}
+	}
+	return path
+}
+
 // hookReport renders findings one per line, paths relative to cwd.
 func hookReport(findings []Finding, cwd string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "gochecks: %d finding(s)\n", len(findings))
 	for _, f := range findings {
-		path := f.File
-		if cwd != "" {
-			if rel, err := filepath.Rel(cwd, f.File); err == nil && !strings.HasPrefix(rel, "..") {
-				path = rel
-			}
-		}
+		path := relPath(f.File, cwd)
 		if f.Line == 0 {
 			// A file-level finding names the file; a package-level
 			// one, such as a broken tool, names the directory.
@@ -120,8 +131,9 @@ func hookReport(findings []Finding, cwd string) string {
 	return b.String()
 }
 
-// hookSessionStart adds, once, findings a session in this directory
-// left standing, a count of what audit lists, and dependencies that are
+// hookSessionStart adds, once, what gochecks runs for the agent where
+// the Stop hook is wired, findings a session in this directory left
+// standing, a count of what audit lists, and dependencies that are
 // behind. Anything that goes wrong stays silent; a session start is not
 // the place to report network trouble.
 func hookSessionStart(ev hookInput, out io.Writer) int {
@@ -129,7 +141,7 @@ func hookSessionStart(ev hookInput, out io.Writer) int {
 	if dir == "" {
 		return 0
 	}
-	text := unresolvedIn(dir) + auditSummary(dir)
+	text := coverageNote(dir) + unresolvedIn(dir) + auditSummary(dir)
 	if modulePath(dir) != "" {
 		if cfg, err := loadConfig(dir); err == nil {
 			if deps, err := behindDeps(dir, cfg); err == nil && len(deps) > 0 {

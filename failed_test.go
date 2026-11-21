@@ -176,3 +176,57 @@ func TestE2ECheckLintersOnWithoutGolangci(t *testing.T) {
 		t.Errorf("unset linters: exit %d, output %q", code, out)
 	}
 }
+
+// go vet always runs; golangci-lint's govet repeating it at the same
+// place is dropped, and vet's copy kept.
+func TestDropGovetDupes(t *testing.T) {
+	fs := dropGovetDupes([]Finding{
+		{File: "a.go", Line: 6, Col: 14, Class: "error", Tool: "vet", Msg: `fmt.Printf format %d has arg "x" of wrong type string`},
+		{File: "a.go", Line: 6, Col: 14, Class: "warning", Tool: "golangci-lint/govet", Msg: `printf: fmt.Printf format %d has arg "x" of wrong type string`},
+		{File: "a.go", Line: 9, Col: 2, Class: "warning", Tool: "golangci-lint/govet", Msg: "shadow: declaration of err shadows declaration"},
+	})
+	if len(fs) != 2 || fs[0].Tool != "vet" || fs[1].Line != 9 {
+		t.Errorf("got %+v", fs)
+	}
+}
+
+// A package that does not compile gets no vet or linter run; reports
+// say so. Its build errors are reported from every file in it: an edit
+// to a.go that breaks b.go blocks on a.go too.
+func TestSkippedPackageIsNamed(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, map[string]string{
+		"go.mod":         fixtureGoMod,
+		".gochecks.json": `{"linters": false}`,
+		"a.go":           "package fixture\n\nfunc A(s string) int { return len(s) }\n",
+		"b.go":           "package fixture\n\nfunc B() int { return A(1) }\n",
+	})
+	t.Chdir(dir)
+	a, b := filepath.Join(dir, "a.go"), filepath.Join(dir, "b.go")
+	const note = "vet and the linters did not run on ./: it does not compile. They run once it does."
+
+	out := captureStdout(t, func() { runCheckWith([]string{b}, true, true, Config{Linters: new(false)}) })
+	if !strings.Contains(out, "b.go:3:") || !strings.Contains(out, note) {
+		t.Errorf("check --text:\n%s", out)
+	}
+	if strings.Contains(out, dir) {
+		t.Errorf("check --text paths should be relative to the working directory:\n%s", out)
+	}
+
+	r := runHookEvent(t, hookEvent(dir, b))
+	if r.code != 2 || !strings.Contains(r.stderr, note) {
+		t.Errorf("PostToolUse with the error: %+v", r)
+	}
+	r = runHookEvent(t, hookEvent(dir, a))
+	if r.code != 2 || !strings.Contains(r.stderr, "b.go:3:") || !strings.Contains(r.stderr, note) {
+		t.Errorf("PostToolUse on a.go, with b.go broken by the change: %+v", r)
+	}
+
+	// Errors in another package are not this edit's: c/ imports nothing
+	// broken, so editing it reports nothing about the root package.
+	edit(t, filepath.Join(dir, "c", "c.go"), "package c\n\nfunc C() int { return 1 }\n")
+	if r := runHookEvent(t, hookEvent(dir, filepath.Join(dir, "c", "c.go"))); r.code != 0 || r.out != "" || r.stderr != "" {
+		t.Errorf("edit in another package: %+v", r)
+	}
+}

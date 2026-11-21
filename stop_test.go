@@ -95,7 +95,7 @@ func TestStopBlocksOnChangedFiles(t *testing.T) {
 		t.Fatalf("exit %d, want 2: %+v", r.code, r)
 	}
 	for _, want := range []string{
-		"blocking finding(s) in files changed since HEAD",
+		"blocking finding(s) from checking the files changed since HEAD",
 		"a.go:6:", "error/vet",
 		"sub/b.go:3:", "error/build",
 		"Touching a file means owning every finding",
@@ -350,5 +350,69 @@ func TestSyntaxErrorBlocks(t *testing.T) {
 	}
 	if r := runHookEvent(t, stopEvent("x1", dir, false)); r.code != 2 || !strings.Contains(r.stderr, "a.go:4:") {
 		t.Errorf("Stop: %+v", r)
+	}
+}
+
+// The first block in a session explains; later ones are one line.
+func TestStopGuidanceOncePerSession(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := gitRepo(t, stopFixture())
+	edit(t, filepath.Join(dir, "a.go"), vetBad)
+
+	first := runHookEvent(t, stopEvent("o1", dir, false))
+	if first.code != 2 || !strings.Contains(first.stderr, "Touching a file means owning") || !strings.Contains(first.stderr, "stop again: this check reruns") {
+		t.Fatalf("first block: %+v", first)
+	}
+	edit(t, filepath.Join(dir, "b.go"), "package fixture\n\nfunc B() int { return \"x\" }\n")
+	second := runHookEvent(t, stopEvent("o1", dir, true))
+	if second.code != 2 || strings.Contains(second.stderr, "Touching a file") || !strings.HasSuffix(second.stderr, stopReminder) {
+		t.Errorf("second block: %+v", second)
+	}
+	if r := runHookEvent(t, stopEvent("o2", dir, false)); !strings.Contains(r.stderr, "Touching a file") {
+		t.Errorf("a new session is told again: %+v", r)
+	}
+}
+
+// Session start says what gochecks runs for the agent and what is left
+// to it, only where the Stop hook is wired, with the test clause true
+// to the config.
+func TestSessionStartCoverageNote(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	stopOn := func(t *testing.T, dir string) {
+		t.Helper()
+		_ = captureStdout(t, func() { runInstall([]string{"--dir", dir, "--stop", "--no-skill", "--no-doc"}) })
+	}
+	note := func(t *testing.T, dir string) string {
+		t.Helper()
+		return runHookEvent(t, startEvent("c1", dir)).out
+	}
+
+	plain := writeFixture(t, map[string]string{"go.mod": "module m\n"})
+	_ = captureStdout(t, func() { runInstall([]string{"--dir", plain, "--no-skill", "--no-doc"}) })
+	if out := note(t, plain); strings.Contains(out, "checks your Go changes") {
+		t.Errorf("no Stop hook, no note: %s", out)
+	}
+
+	off := writeFixture(t, map[string]string{"go.mod": "module m\n"})
+	stopOn(t, off)
+	out := note(t, off)
+	for _, want := range []string{"checks your Go changes for you", "(Bash edits included)", "No need to run go build, go vet or a linter to check those files.", "Still yours: go test (not enabled in .gochecks.json)", "building the packages that import the ones you changed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("test off: missing %q in %s", want, out)
+		}
+	}
+
+	on := writeFixture(t, map[string]string{"go.mod": "module m\n", ".gochecks.json": `{"test": true}`})
+	stopOn(t, on)
+	if out := note(t, on); !strings.Contains(out, "Still yours: tests of packages you did not change (go test runs on the changed ones)") {
+		t.Errorf("test on: %s", out)
+	}
+
+	ws := writeFixture(t, map[string]string{"go.work": "go 1.26\n\nuse ./a\n", "a/go.mod": "module a\n"})
+	stopOn(t, ws)
+	if out := note(t, ws); !strings.Contains(out, `go test, except in modules whose .gochecks.json sets \"test\": true`) {
+		t.Errorf("workspace root: %s", out)
 	}
 }

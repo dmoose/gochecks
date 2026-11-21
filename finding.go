@@ -24,8 +24,10 @@ type Finding struct {
 
 func emit(findings []Finding, textOut bool) {
 	if textOut {
-		// Same line form as the hook report, with absolute paths.
-		fmt.Print(strings.TrimPrefix(hookReport(findings, ""), fmt.Sprintf("gochecks: %d finding(s)\n", len(findings))))
+		// Same line form as the hook report, paths relative to the
+		// working directory.
+		cwd, _ := os.Getwd()
+		fmt.Print(strings.TrimPrefix(hookReport(findings, cwd), fmt.Sprintf("gochecks: %d finding(s)\n", len(findings))))
 		return
 	}
 	enc := json.NewEncoder(os.Stdout)

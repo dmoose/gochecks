@@ -61,6 +61,19 @@ pkg/a.go:3:4 warning/staticcheck: this value of x is never used (SA4006)
 pkg/a.go:9:2 suggestion/modernize: Loop can be simplified using slices.Contains (slicescontains; conflicts with another fix, apply by hand)
 ```
 
+A package that does not compile gets no vet or linter run, since they
+would only repeat its type errors. The report then ends with a line
+naming it, so build errors are not read as the whole story:
+
+```
+vet and the linters did not run on pkg/: it does not compile. They run once it does.
+```
+
+Build errors are reported from every file of a changed package, not
+only the edited one: a signature change in `a.go` that breaks a caller
+in `b.go` blocks on `b.go`. `check --text` prints the line too, with
+paths relative to the working directory.
+
 `check` and `fix` keep their own exit codes (0, 1, 2 by highest class)
 for shell and CI use.
 
@@ -103,8 +116,15 @@ each file's `.gochecks.json` and its `exclude`.
   once; context added at Stop would keep the turn going.
 - git not on PATH: exit 1 with a note; the check cannot see changes.
 
-The report tells the agent that touching a file means owning every
-finding in it, and to ask the user when a finding looks wrong.
+The first block in a session tells the agent that touching a file means
+owning every finding in it, that stopping again reruns the check, and
+to ask the user when a finding looks wrong. Later blocks in the session
+end with one line instead.
+
+Where the Stop hook is wired, session start also tells the agent what
+gochecks runs on its behalf, so it does not repeat go build or go vet,
+and what is left to it: go test unless `"test": true`, the packages
+that import the ones it changed, and running the program.
 
 ### Override
 
