@@ -139,3 +139,40 @@ func TestFailedRunNamesStartError(t *testing.T) {
 		t.Errorf("want one did-not-run warning, got %+v", fs)
 	}
 }
+
+// "linters": true asks for golangci-lint; without it, that is a
+// warning on the config file.
+func TestE2ECheckLintersOnWithoutGolangci(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := writeFixture(t, map[string]string{
+		"go.mod":         fixtureGoMod,
+		".gochecks.json": `{"linters": true}`,
+		"a.go":           "package fixture\n\nfunc A() int { return 1 }\n",
+	})
+	fakeTools(t, "")
+	cfg, err := loadConfig(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var code int
+	out := captureStdout(t, func() {
+		code = runCheckWith([]string{filepath.Join(dir, "a.go")}, true, false, cfg)
+	})
+	if code != 1 {
+		t.Errorf("exit %d, want 1", code)
+	}
+	fs := parseJSONL(t, out)
+	if len(fs) != 1 || fs[0].File != filepath.Join(dir, ".gochecks.json") || fs[0].Tool != "golangci-lint" ||
+		!strings.Contains(fs[0].Msg, "not on PATH") {
+		t.Errorf("want one warning on the config, got:\n%s", out)
+	}
+
+	// Unset, a missing golangci-lint is skipped as before.
+	cfg.Linters = nil
+	out = captureStdout(t, func() { code = runCheckWith([]string{filepath.Join(dir, "a.go")}, true, false, cfg) })
+	if code != 0 || out != "" {
+		t.Errorf("unset linters: exit %d, output %q", code, out)
+	}
+}

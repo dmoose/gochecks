@@ -200,7 +200,24 @@ func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config
 		}
 		findings = append(findings, r.findings...)
 	}
+	findings = append(findings, lintersMissing(cfg)...)
 	return dedupeFailed(collapseBroken(findings)), nil
+}
+
+// lintersMissing is a warning when the config asks for golangci-lint
+// and it is not on PATH. Absent other analyzers are skipped: doctor
+// reports them, and nothing asked for them.
+func lintersMissing(cfg Config) []Finding {
+	if cfg.Linters == nil || !*cfg.Linters || golangciLintAvailable() {
+		return nil
+	}
+	return []Finding{{
+		File:   cfg.Path,
+		Class:  "warning",
+		Tool:   "golangci-lint",
+		Msg:    "\"linters\": true, but golangci-lint is not on PATH; run `gochecks doctor --fix`",
+		failed: true,
+	}}
 }
 
 type toolProbes struct {
