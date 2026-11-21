@@ -84,7 +84,7 @@ Usage:
   gochecks check  [--changed "<file>..."] [--no-apply] [--text] [file...]
   gochecks fix    [--changed "<file>..."] [--text] [file...]
   gochecks show   [--context N] <file:line>
-  gochecks doctor [--fix] [--offline] [--scan <dir>]
+  gochecks doctor [--fix] [--offline] [--scan <dir> [--require-stop]]
   gochecks status
   gochecks deps   [--fail] [--text]
   gochecks install [--dir .] [--stop] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
@@ -112,6 +112,7 @@ doctor       Go toolchain and each tool: installed, built against the
              --fix installs or updates. --scan <dir> instead lists every
              directory under dir with a go.mod or go.work (where a session
              may start) whose hook wiring is missing or stale; exit 1 if any.
+             --require-stop also counts one without the Stop hook.
 status       Config in effect and the hook log tail.
 deps         Direct Go modules, copied assets (the assets map in
              .gochecks.json, file -> npm package) and version pins in

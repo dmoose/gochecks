@@ -32,7 +32,7 @@ func TestDoctorScan(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if code := runScan(root, &out); code != 1 {
+	if code := runScan(root, false, &out); code != 1 {
 		t.Errorf("exit %d, want 1", code)
 	}
 	got := out.String()
@@ -62,7 +62,7 @@ func TestDoctorScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	out.Reset()
-	if code := runScan(root, &out); code != 0 {
+	if code := runScan(root, false, &out); code != 0 {
 		t.Errorf("after wiring: exit %d, want 0:\n%s", code, out.String())
 	}
 }
@@ -77,7 +77,7 @@ func TestDoctorScanStaleSettings(t *testing.T) {
 		"b/.claude/settings.json": `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"gochecks hook"}]}]}}`,
 	})
 	var out bytes.Buffer
-	if code := runScan(root, &out); code != 1 {
+	if code := runScan(root, false, &out); code != 1 {
 		t.Errorf("exit %d, want 1", code)
 	}
 	for _, want := range []string{
@@ -125,8 +125,30 @@ func TestDoctorScanSkipsGitIgnored(t *testing.T) {
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
 	var out bytes.Buffer
-	runScan(root, &out)
+	runScan(root, false, &out)
 	if strings.Contains(out.String(), "output") || !strings.Contains(out.String(), "site/tools/gen/: ") {
 		t.Errorf("want only site/tools/gen reported:\n%s", out.String())
+	}
+}
+
+// --require-stop counts a launch point wired without the Stop hook.
+func TestDoctorScanRequireStop(t *testing.T) {
+	isolateHome(t)
+	root := writeFixture(t, map[string]string{"a/go.mod": "module a\n", "b/go.mod": "module b\n"})
+	if code := runInstall([]string{"--dir", filepath.Join(root, "a"), "--no-skill", "--no-doc"}); code != 0 {
+		t.Fatal("install a")
+	}
+	if code := runInstall([]string{"--dir", filepath.Join(root, "b"), "--stop", "--no-skill", "--no-doc"}); code != 0 {
+		t.Fatal("install b")
+	}
+	var out bytes.Buffer
+	if code := runScan(root, false, &out); code != 0 {
+		t.Errorf("without --require-stop: exit %d\n%s", code, out.String())
+	}
+	out.Reset()
+	if code := runScan(root, true, &out); code != 1 ||
+		!strings.Contains(out.String(), "a/: no gochecks Stop hook in .claude/settings.json (run gochecks install --stop)") ||
+		strings.Contains(out.String(), "b/:") {
+		t.Errorf("with --require-stop: exit %d\n%s", code, out.String())
 	}
 }

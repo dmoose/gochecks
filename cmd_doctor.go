@@ -52,12 +52,13 @@ func runDoctor(args []string) int {
 	)
 	fs.BoolVar(&fix, "fix", false, "install missing, broken, or outdated tools at @latest, built with the module's Go")
 	fs.BoolVar(&offline, "offline", false, "skip latest-version lookups")
+	requireStop := fs.Bool("require-stop", false, "with --scan, also count a launch point without the Stop hook")
 	scan := fs.String("scan", "", "list every Go launch point under `dir` whose hook wiring is missing or stale, and nothing else")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *scan != "" {
-		return runScan(*scan, os.Stdout)
+		return runScan(*scan, *requireStop, os.Stdout)
 	}
 
 	cwd, _ := os.Getwd()

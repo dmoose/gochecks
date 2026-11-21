@@ -22,7 +22,7 @@ type launchProblem struct {
 // hold a go.mod or go.work, and returns them and every wiring gap
 // found. Claude Code reads .claude/settings.json only from the
 // directory a session starts in, so each launch point needs its own.
-func scanLaunchPoints(root string) (points []string, problems []launchProblem, err error) {
+func scanLaunchPoints(root string, requireStop bool) (points []string, problems []launchProblem, err error) {
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// An unreadable directory is skipped, not fatal.
@@ -46,7 +46,7 @@ func scanLaunchPoints(root string) (points []string, problems []launchProblem, e
 			return filepath.SkipDir
 		}
 		points = append(points, path)
-		for _, msg := range launchPointProblems(path) {
+		for _, msg := range launchPointProblems(path, requireStop) {
 			problems = append(problems, launchProblem{dir: path, msg: msg})
 		}
 		return nil
@@ -85,7 +85,9 @@ func gitIgnored(dir string) bool {
 var oldNameRE = regexp.MustCompile(`\bgocheck\b`)
 
 // launchPointProblems lists the wiring gaps at one launch point.
-func launchPointProblems(dir string) []string {
+// requireStop also counts a missing Stop hook, once repos are meant to
+// have it.
+func launchPointProblems(dir string, requireStop bool) []string {
 	var out []string
 	settings := filepath.Join(".claude", "settings.json")
 	data, err := os.ReadFile(filepath.Join(dir, settings))
@@ -94,6 +96,9 @@ func launchPointProblems(dir string) []string {
 		out = append(out, "no "+settings+" (run gochecks install)")
 	case !hasHookEntry(data, "PostToolUse"):
 		out = append(out, "no gochecks hook in "+settings+" (run gochecks install)")
+	}
+	if err == nil && requireStop && !hasHookEntry(data, "Stop") {
+		out = append(out, "no gochecks Stop hook in "+settings+" (run gochecks install --stop)")
 	}
 	if err == nil && oldNameRE.Match(data) {
 		out = append(out, settings+" runs gocheck, the old name (run gochecks install --upgrade)")
@@ -142,13 +147,13 @@ func makefileCallsOldName(path string) bool {
 
 // runScan prints each gap under root, relative to it, and returns 1
 // when there is any.
-func runScan(root string, out io.Writer) int {
+func runScan(root string, requireStop bool, out io.Writer) int {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		_, _ = fmt.Fprintln(out, "gochecks doctor --scan:", err)
 		return 2
 	}
-	points, problems, err := scanLaunchPoints(abs)
+	points, problems, err := scanLaunchPoints(abs, requireStop)
 	if err != nil {
 		_, _ = fmt.Fprintln(out, "gochecks doctor --scan:", err)
 		return 2

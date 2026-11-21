@@ -178,7 +178,9 @@ with a `go.mod` or `go.work` that has no `.claude/settings.json`, no
 `gochecks hook` on PostToolUse, or still runs `gocheck`, the old name,
 in its settings or Makefile. It skips `testdata`, `vendor`,
 `node_modules`, hidden directories and directories git ignores, and
-exits 1 when it lists anything.
+exits 1 when it lists anything. `--require-stop` also lists a launch
+point whose settings lack the Stop hook; use it once every repo under
+`dir` is meant to have one.
 
 Every run appends a line with duration, exit code, finding count and,
 for `hook`, the file. To drive the hook by hand:
