@@ -82,7 +82,7 @@ Usage:
   gochecks check  [--changed "<file>..."] [--no-apply] [--text] [file...]
   gochecks fix    [--changed "<file>..."] [--text] [file...]
   gochecks show   [--context N] <file:line>
-  gochecks doctor [--fix] [--offline]
+  gochecks doctor [--fix] [--offline] [--scan <dir>]
   gochecks status
   gochecks deps   [--fail] [--text]
   gochecks install [--dir .] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
@@ -102,13 +102,15 @@ fix          check, plus go fix modernize on the changed files first.
 show         Source context and vet findings at file:line.
 doctor       Go toolchain and each tool: installed, built against the
              current toolchain, latest release; the repo's hook wiring.
-             --fix installs or updates.
+             --fix installs or updates. --scan <dir> instead lists every
+             directory under dir with a go.mod or go.work (where a session
+             may start) whose hook wiring is missing or stale; exit 1 if any.
 status       Config in effect and the hook log tail.
 deps         Direct Go modules, copied assets (the assets map in
              .gochecks.json, file -> npm package) and version pins in
              .github/workflows with a newer release, own modules first.
              --fail exits 1 when anything is behind.
-install      Wire a repo: PostToolUse hook in .claude/settings.json, the
+install      Wire a repo or go.work root: PostToolUse hook in .claude/settings.json, the
              go-current skill, .claude/gochecks.md. --upgrade refreshes
              those; --config adds .gochecks.json; --lint-config adds the
              profile as .golangci.yml, never overwriting one.

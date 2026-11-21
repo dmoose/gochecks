@@ -6,6 +6,12 @@
 not `~/.claude/settings.json`. Language-specific tooling belongs with
 the repo it serves.
 
+Claude Code reads `.claude/settings.json` only from the directory a
+session starts in. Install at every place a Go session may start: each
+module, and a `go.work` root even when it is not a repo. The hook
+resolves each edited file to its module, so one install at a workspace
+root covers edits in every module it lists.
+
 ```json
 {
   "hooks": {
@@ -93,7 +99,8 @@ Dropped before any tool runs:
 
 gofumpt, staticcheck, errcheck, ineffassign and golangci-lint are used
 when on PATH and skipped when not; `"linters": false` turns
-golangci-lint off. gofumpt replaces gofmt when present. golangci-lint
+golangci-lint off, and `"linters": true` makes a missing golangci-lint
+a warning. gofumpt replaces gofmt when present. golangci-lint
 takes the repo's `.golangci.yml` if there is one and the profile
 embedded in gochecks otherwise; it then owns staticcheck, errcheck and
 ineffassign, and with `auto_fix` runs with `--fix`. If you keep your own config,
@@ -109,6 +116,13 @@ gochecks doctor
 gochecks status
 tail -f ~/Library/Caches/gochecks/hook.log
 ```
+
+`gochecks doctor --scan <dir>` walks `dir` and lists every directory
+with a `go.mod` or `go.work` that has no `.claude/settings.json`, no
+`gochecks hook` on PostToolUse, or still runs `gocheck`, the old name,
+in its settings or Makefile. It skips `testdata`, `vendor`,
+`node_modules` and hidden directories, and exits 1 when it lists
+anything.
 
 Every run appends a line with duration, exit code, finding count and,
 for `hook`, the file. To drive the hook by hand:

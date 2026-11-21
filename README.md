@@ -69,6 +69,11 @@ This writes:
 - `.claude/gochecks.md`: a short note on what is wired and how to tune it.
 - `.gochecks.json` (with `--config`): the defaults below, to edit.
 
+Run it in a `go.work` root too, even one that is not a repo: Claude
+Code reads settings only from the directory a session starts in.
+`gochecks doctor --scan <dir>` lists every module or workspace under
+`dir` that is not wired, and exits 1 if there is one.
+
 `gochecks install --upgrade` refreshes those files after a gochecks
 update. `gochecks install --lint-config` additionally writes the lint
 profile as `.golangci.yml`; see Linting.
@@ -86,7 +91,7 @@ start it adds one line when dependencies have newer releases.
 | `check [files]` | format, build, vet, analyzers; exit 0, 1 or 2 by highest class; `--no-apply` writes nothing and reports what it would apply, even with `auto_fix` |
 | `fix [files]` | `check` with `go fix` modernize first |
 | `show file:line` | source context and vet findings at a position |
-| `doctor [--fix]` | toolchain and analyzer health; `--fix` installs or updates |
+| `doctor [--fix] [--scan dir]` | toolchain and analyzer health; `--fix` installs or updates; `--scan` lists unwired launch points |
 | `deps [--fail]` | direct modules, copied assets and workflow pins with a newer release; `--fail` exits 1 when any |
 | `status` | config in effect and the hook log tail |
 | `install` | wire a repo; `--upgrade`, `--config`, `--lint-config` as above |
@@ -123,6 +128,8 @@ default:
   Fixes that modernize could not apply because two of them overlap are
   reported as suggestions at their position.
 - `linters`: set `false` to keep golangci-lint out even when installed.
+  Set `true` to require it: if it is not on PATH, check reports a
+  warning on `.gochecks.json`.
 - `exclude`: patterns dropped before any tool runs. A pattern with a
   `/` matches anywhere in the path (`"testdata/"`, `"internal/gen/"`);
   one without matches the file name (`"*_gen.go"`, `"mock_*.go"`).
