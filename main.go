@@ -111,8 +111,10 @@ check        Formats with gofumpt (or gofmt) and goimports, then runs go
 fix          check, plus go fix modernize on the changed files first.
 show         Source context and vet findings at file:line.
 doctor       Go toolchain and each tool: installed, built against the
-             current toolchain, latest release; the repo's hook wiring.
-             --fix installs or updates. --scan <dir> instead lists every
+             current toolchain, latest release; the repo's wiring (hook,
+             old gocheck name, make check without gochecks), exit 1 on
+             drift. --fix installs or updates tools. --require-stop also
+             counts a missing Stop hook. --scan <dir> instead lists every
              directory under dir with a go.mod or go.work (where a session
              may start) whose hook wiring is missing or stale; exit 1 if any.
              --require-stop also counts one without the Stop hook.

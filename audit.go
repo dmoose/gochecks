@@ -117,6 +117,7 @@ func audit(root string, deps bool) ([]auditItem, error) {
 		case name == "go.mod":
 			modules = append(modules, filepath.Dir(path))
 			items = append(items, auditReplace(path)...)
+			items = append(items, auditTestOff(filepath.Dir(path))...)
 		case name == configFilename:
 			items = append(items, auditConfig(path)...)
 		case slices.Contains(lintConfigNames, name):
@@ -158,8 +159,8 @@ var (
 	lintIgnoreRE = regexp.MustCompile(`^//lint:(ignore|file-ignore)\s+(\S+)\s*(.*)$`)
 )
 
-// auditGoFile lists the suppression comments in one Go file. Generated
-// files are skipped: nobody wrote their comments.
+// auditGoFile lists the suppression comments in one Go file, skipping
+// generated files.
 func auditGoFile(path string) []auditItem {
 	if gen, err := isGenerated(path); err != nil || gen {
 		return nil
@@ -174,8 +175,7 @@ func auditGoFile(path string) []auditItem {
 		for _, c := range group.List {
 			line := fset.Position(c.Pos()).Line
 			text := strings.TrimSpace(c.Text)
-			// A trailing //nolint shares its comment with nothing, but a
-			// reason after it is part of the same // comment.
+			// `//nolint:x // why` is one comment, reason included.
 			if m := nolintRE.FindStringSubmatch(text); m != nil {
 				items = append(items, auditItem{Kind: kindNolint, File: path, Line: line, Msg: describeSuppression(strings.TrimSpace(m[1]), strings.TrimSpace(m[2]))})
 				continue
@@ -241,21 +241,37 @@ func auditConfig(path string) []auditItem {
 	for _, pat := range cfg.Exclude {
 		add(fmt.Sprintf("exclude %q: matching files are never checked", pat))
 	}
-	if !cfg.Test && hasTests(filepath.Dir(path)) {
-		add(`"test" is off: go test does not run on changed packages, and this tree has tests`)
-	}
 	return items
 }
 
-// hasTests reports whether dir holds a _test.go file outside the
-// directories the go tool skips.
+// auditTestOff lists a module with tests that check runs with test
+// off, whether .gochecks.json says so or the default does.
+func auditTestOff(module string) []auditItem {
+	cfg, err := loadConfig(module)
+	if err != nil || cfg.Test || !hasTests(module) {
+		return nil
+	}
+	why := "the default"
+	if cfg.Path != "" {
+		why = "set in " + cfg.Path
+	}
+	return []auditItem{{Kind: kindConfig, File: filepath.Join(module, "go.mod"), Msg: `"test" is off (` + why + `): go test does not run on changed packages, and this module has tests`}}
+}
+
+func isModuleRoot(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "go.mod"))
+	return err == nil
+}
+
+// hasTests reports whether the module at dir holds a _test.go file
+// outside nested modules and the directories the go tool skips.
 func hasTests(dir string) bool {
 	found := false
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || found {
 			return filepath.SkipAll
 		}
-		if d.IsDir() && path != dir && skipScanDir(d.Name()) {
+		if d.IsDir() && path != dir && (skipScanDir(d.Name()) || isModuleRoot(path)) {
 			return filepath.SkipDir
 		}
 		if strings.HasSuffix(d.Name(), "_test.go") {

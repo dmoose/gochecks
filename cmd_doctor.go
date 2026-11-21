@@ -52,7 +52,7 @@ func runDoctor(args []string) int {
 	)
 	fs.BoolVar(&fix, "fix", false, "install missing, broken, or outdated tools at @latest, built with the module's Go")
 	fs.BoolVar(&offline, "offline", false, "skip latest-version lookups")
-	requireStop := fs.Bool("require-stop", false, "with --scan, also count a launch point without the Stop hook")
+	requireStop := fs.Bool("require-stop", false, "also count a missing Stop hook as wiring drift")
 	scan := fs.String("scan", "", "list every Go launch point under `dir` whose hook wiring is missing or stale, and nothing else")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -99,7 +99,9 @@ func runDoctor(args []string) int {
 	}
 
 	fmt.Println()
-	fmt.Println(repoWiring(cwd, cfg))
+	wiring, drift := repoWiring(cwd, cfg, *requireStop)
+	fmt.Println(wiring)
+	attention = attention || drift
 
 	if len(installs) == 0 {
 		return exitAttention(attention)
@@ -135,7 +137,7 @@ func runDoctor(args []string) int {
 	}
 	fmt.Println()
 	fmt.Println("re-checking:")
-	attention = goAttention
+	attention = goAttention || drift
 	var still []toolReport
 	for _, r := range diagnoseTools(goVer, offline) {
 		fmt.Printf("%-14s %-32s %s\n", r.spec.name, describeInstalled(r), verdictTool(r, cfg, goVer))
@@ -421,26 +423,35 @@ func verdictTool(r toolReport, cfg Config, goVer string) string {
 	return strings.Join(parts, "; ")
 }
 
-// repoWiring describes the hook and config found under cwd.
-func repoWiring(cwd string, cfg Config) string {
+// repoWiring describes the wiring at the launch point holding cwd: the
+// hook, the Stop hook when required, and make check. drift is true
+// when any of them is missing or stale.
+func repoWiring(cwd string, cfg Config, requireStop bool) (text string, drift bool) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "repo %s\n", cwd)
-	settings := filepath.Join(cwd, ".claude", "settings.json")
-	data, err := os.ReadFile(settings)
-	switch {
-	case err != nil:
-		b.WriteString("  hook:   not wired (run gochecks install)\n")
-	case strings.Contains(string(data), hookCommand):
-		b.WriteString("  hook:   wired\n")
-	case containsGocheck(string(data)):
-		b.WriteString("  hook:   older command in .claude/settings.json (run gochecks install --upgrade)\n")
-	default:
-		b.WriteString("  hook:   not wired (run gochecks install)\n")
+	lp := cwd
+	if !isLaunchPoint(lp) {
+		lp = moduleRoot(cwd)
+	}
+	if !isLaunchPoint(lp) {
+		b.WriteString("repo: not in a Go module or workspace; wiring not checked\n")
+	} else {
+		fmt.Fprintf(&b, "repo %s\n", lp)
+		problems := launchPointProblems(lp, requireStop)
+		for _, it := range auditMakeCheck(filepath.Join(lp, "Makefile")) {
+			problems = append(problems, "Makefile "+it.Msg)
+		}
+		if len(problems) == 0 {
+			b.WriteString("  wiring: ok\n")
+		}
+		for _, p := range problems {
+			fmt.Fprintf(&b, "  wiring: %s\n", p)
+		}
+		drift = len(problems) > 0
 	}
 	if cfg.Path == "" {
 		b.WriteString("  config: defaults (no .gochecks.json)")
 	} else {
 		fmt.Fprintf(&b, "  config: %s (test=%t auto_fix=%t linters=%t)", cfg.Path, cfg.Test, cfg.AutoFix, cfg.lintersOn())
 	}
-	return b.String()
+	return b.String(), drift
 }

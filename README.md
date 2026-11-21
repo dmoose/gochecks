@@ -45,6 +45,10 @@ after a Go upgrade: analyzers built against an older Go cannot read the
 new export data, and until they are rebuilt gochecks reports each one
 as a single warning instead of its findings.
 
+In a Go module or workspace, `doctor` also exits 1 on wiring drift: no
+hook, the old `gocheck` name, or a Makefile `check` target that does
+not run gochecks. `--require-stop` adds a missing Stop hook.
+
 A tool that runs but checks nothing is never a pass. A module that the
 enclosing `go.work` does not list is an error naming the missing `use`
 line; an analyzer that fails without findings is a warning with its
@@ -164,9 +168,8 @@ because `go fix` already runs it, and noctx because it flags every
 `exec.Command` in a command-line tool. gosec's file-permission and
 unhandled-error rules are excluded for the same reasons.
 
-nolintlint makes every suppression visible and accountable: a bare
-`//nolint`, one without a reason, and one that no longer suppresses
-anything are warnings. Write `//nolint:errcheck // why`. staticcheck's
+nolintlint makes a bare `//nolint`, one without a reason, and one that
+no longer suppresses anything warnings. Write `//nolint:errcheck // why`. staticcheck's
 own `//lint:ignore Check reason` already requires a reason.
 
 Findings from the idiom linters are suggestions; the rest are warnings,
@@ -244,7 +247,8 @@ past a problem stays visible:
   linters it does not run, disabled linters, exclusions, severity
   overrides
 - `.gochecks.json` settings that switch checks off: `"linters": false`,
-  each `exclude`, and `test` off where the tree has tests
+  each `exclude`, and `test` off in a module with tests, whether the
+  config or the default turns it off
 - `GOWORK=off` in a Makefile or Dockerfile
 - `replace` directives in go.mod
 - dependencies behind, as `deps` reports them (skipped with `--offline`)

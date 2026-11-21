@@ -181,6 +181,11 @@ gochecks status
 tail -f ~/Library/Caches/gochecks/hook.log
 ```
 
+`gochecks doctor` also checks the wiring of the module or workspace it
+runs in and exits 1 on drift: no hook, the old `gocheck` name in the
+settings or Makefile, or a Makefile `check` target that does not run
+gochecks. With `--require-stop`, a missing Stop hook counts too.
+
 `gochecks doctor --scan <dir>` walks `dir` and lists every directory
 with a `go.mod` or `go.work` that has no `.claude/settings.json`, no
 `gochecks hook` on PostToolUse, or still runs `gocheck`, the old name,

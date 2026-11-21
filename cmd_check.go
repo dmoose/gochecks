@@ -117,8 +117,12 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 		default:
 			findings = append(findings, impFindings...)
 		}
-	} else if err := applyFormat(files); err != nil {
-		return nil, err
+	} else {
+		fs, err := applyFormat(files)
+		if err != nil {
+			return nil, err
+		}
+		findings = append(findings, fs...)
 	}
 
 	scope := make(map[string]bool, len(files))
@@ -134,6 +138,7 @@ func check(files []string, noApply bool, cfg Config) ([]Finding, error) {
 	findings = append(findings, pkgFindings...)
 
 	// Modernize only a tree with nothing blocking in it.
+	findings = dropParseDupes(findings)
 	if cfg.AutoFix && !hasBlockingFinding(findings) {
 		for pkgDir := range pkgs {
 			if err := modernizeAndFormat(pkgDir, scope); err != nil {
@@ -153,7 +158,8 @@ func modernizeAndFormat(pkgDir string, scope map[string]bool) error {
 	if err != nil || len(changed) == 0 {
 		return err
 	}
-	return applyFormat(changed)
+	_, err = applyFormat(changed)
+	return err
 }
 
 type pkgResult struct {
@@ -259,19 +265,52 @@ func hasBlockingFinding(findings []Finding) bool {
 	return false
 }
 
-func applyFormat(files []string) error {
-	if _, err := runGofmt(files, true); err != nil {
-		return fmt.Errorf("gofmt: %w", err)
+// applyFormat formats files in place and returns the parse errors of
+// those that could not be.
+func applyFormat(files []string) ([]Finding, error) {
+	fs, err := runGofmt(files, true)
+	if err != nil {
+		return nil, fmt.Errorf("gofmt: %w", err)
 	}
-	_, err := runGoimports(files, true)
+	imp, err := runGoimports(files, true)
 	if errors.Is(err, errGoimportsMissing) {
 		fmt.Fprintln(os.Stderr, goimportsMissingNote)
-		return nil
+		return fs, nil
 	}
 	if err != nil {
-		return fmt.Errorf("goimports: %w", err)
+		return nil, fmt.Errorf("goimports: %w", err)
 	}
-	return nil
+	return append(fs, imp...), nil
+}
+
+var formatters = map[string]bool{"gofmt": true, "gofumpt": true, "goimports": true}
+
+// dropParseDupes keeps one report of a syntax error: the formatters and
+// the build all see it at the same position. The build's is kept.
+func dropParseDupes(findings []Finding) []Finding {
+	type pos struct {
+		file      string
+		line, col int
+	}
+	other := map[pos]bool{}
+	for _, f := range findings {
+		if f.Line > 0 && !formatters[f.Tool] {
+			other[pos{f.File, f.Line, f.Col}] = true
+		}
+	}
+	seen := map[pos]bool{}
+	out := findings[:0]
+	for _, f := range findings {
+		p := pos{f.File, f.Line, f.Col}
+		if formatters[f.Tool] && f.Line > 0 {
+			if other[p] || seen[p] {
+				continue
+			}
+			seen[p] = true
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 func exitFor(findings []Finding) int {

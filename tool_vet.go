@@ -9,7 +9,7 @@ func runVet(pkgDir string) ([]Finding, error) {
 	fs := append(parseVet(r.stdout, pkgDir), parseVetText(r.stderr, pkgDir)...)
 	// -json exits 0 with diagnostics; non-zero means vet did not run.
 	if len(fs) == 0 {
-		return failedRun(r, pkgDir, "vet", "error", r.stderr), nil
+		return failedRun(r, pkgDir, "vet", "warning", r.stderr), nil
 	}
 	return fs, nil
 }

@@ -48,7 +48,8 @@ func runFix(args []string) int {
 
 // fixFiles formats and modernizes files, then checks them.
 func fixFiles(files []string, textOut bool, cfg Config) int {
-	if err := applyFormat(files); err != nil {
+	// Parse errors come back from the check below.
+	if _, err := applyFormat(files); err != nil {
 		fmt.Fprintln(os.Stderr, "gochecks:", err)
 		return 2
 	}

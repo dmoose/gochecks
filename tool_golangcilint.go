@@ -103,7 +103,8 @@ func runGolangciLint(pkgDir string, autoFix bool) ([]Finding, error) {
 	case toolBroken(rep.Report.Error):
 		return brokenFinding("golangci-lint", pkgDir), nil
 	case rep.Report.Error != "":
-		// It loaded nothing, wrote an empty report, and exited 7.
+		// A load error comes in the report, with no issues: nothing was
+		// checked, whatever the exit code.
 		return failedRun(toolRun{code: max(r.code, 1)}, pkgDir, "golangci-lint", "warning", rep.Report.Error), nil
 	case !ok:
 		// Exit 1 means issues, which come with a report.

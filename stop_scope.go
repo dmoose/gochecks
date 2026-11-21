@@ -36,13 +36,13 @@ func gitTop(dir string) string {
 	}
 	top := strings.TrimSpace(string(out))
 	// git resolves symlinks; keep dir's spelling when it is the top.
-	if same(top, dir) {
+	if samePath(top, dir) {
 		return dir
 	}
 	return top
 }
 
-func same(a, b string) bool {
+func samePath(a, b string) bool {
 	ra, err1 := filepath.EvalSymlinks(a)
 	rb, err2 := filepath.EvalSymlinks(b)
 	return err1 == nil && err2 == nil && ra == rb

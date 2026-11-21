@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	goversion "go/version"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,7 +172,7 @@ func TestDoctorFixBuildsWithModuleGo(t *testing.T) {
 			})
 			t.Setenv("GOPROXY", "file://"+proxy)
 
-			t.Chdir(writeFixture(t, map[string]string{"go.mod": "module m\n\ngo " + strings.TrimPrefix(target, "go") + "\n"}))
+			t.Chdir(writeFixture(t, wired(map[string]string{"go.mod": "module m\n\ngo " + strings.TrimPrefix(target, "go") + "\n"})))
 			if v, _, _ := goToolchain(); v != target {
 				t.Skipf("%s not in the module cache (got %q)", target, v)
 			}
@@ -341,13 +342,85 @@ func TestDoctorPinnedGoPatch(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv("GOTOOLCHAIN", c.toolchain)
-			t.Chdir(writeFixture(t, c.files))
+			t.Chdir(writeFixture(t, wired(c.files)))
 			var code int
 			report := captureStdout(t, func() { code = runDoctor(nil) })
 			want := local + "  "
 			if !strings.Contains(report, want) || !strings.Contains(report, "outdated, latest "+latest+" "+c.want) || code != c.code {
 				t.Errorf("exit %d, want %d and %q in:\n%s", code, c.code, c.want, report)
 			}
+			// Unwired, the same healthy tree is drift: exit 1.
+			if c.code == 0 {
+				if err := os.Remove(filepath.Join(".claude", "settings.json")); err != nil {
+					t.Fatal(err)
+				}
+				report = captureStdout(t, func() { code = runDoctor(nil) })
+				if code != 1 || !strings.Contains(report, "wiring: no .claude/settings.json") {
+					t.Errorf("unwired: exit %d, want 1, in:\n%s", code, report)
+				}
+			}
 		})
+	}
+}
+
+// wiredSettings is the hook wiring doctor wants at a launch point.
+const wiredSettings = `{"hooks":{"PostToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"gochecks hook"}]}]}}`
+
+// wired adds the hook wiring to fixture files, so doctor's exit code
+// reflects only what a test is about.
+func wired(files map[string]string) map[string]string {
+	out := maps.Clone(files)
+	out[".claude/settings.json"] = wiredSettings
+	return out
+}
+
+// doctor exits 1 on wiring drift at the launch point holding cwd: no
+// hook, the old name in a Makefile, a check target without gochecks,
+// and, with --require-stop, no Stop hook. Each is named.
+func TestDoctorWiringDrift(t *testing.T) {
+	isolateHome(t)
+	const mod = "module m\n"
+	stopSettings := `{"hooks":{"PostToolUse":[{"hooks":[{"command":"gochecks hook"}]}],"Stop":[{"hooks":[{"command":"gochecks hook"}]}]}}`
+	cases := []struct {
+		name        string
+		files       map[string]string
+		requireStop bool
+		want        []string // empty: no drift
+	}{
+		{"wired", wired(map[string]string{"go.mod": mod, "Makefile": "check:\n\tgochecks check .\n"}), false, nil},
+		{"no hook", map[string]string{"go.mod": mod}, false, []string{"wiring: no .claude/settings.json (run gochecks install)"}},
+		{"old name", wired(map[string]string{"go.mod": mod, "Makefile": "check:\n\tgocheck check .\n"}), false, []string{
+			"wiring: Makefile runs gocheck, the old name; use gochecks",
+			"wiring: Makefile check runs gocheck, the old name; use gochecks",
+		}},
+		{"check without gochecks", wired(map[string]string{"go.mod": mod, "Makefile": "check:\n\tgo vet ./...\n"}), false, []string{"wiring: Makefile check does not run gochecks"}},
+		{"no stop, not required", wired(map[string]string{"go.mod": mod}), false, nil},
+		{"no stop, required", wired(map[string]string{"go.mod": mod}), true, []string{"wiring: no gochecks Stop hook in .claude/settings.json (run gochecks install --stop)"}},
+		{"stop, required", map[string]string{"go.mod": mod, ".claude/settings.json": stopSettings}, true, nil},
+		{"subdirectory of a module", wired(map[string]string{"go.mod": mod, "pkg/p.go": "package p\n"}), false, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := writeFixture(t, c.files)
+			cwd := dir
+			if _, ok := c.files["pkg/p.go"]; ok {
+				cwd = filepath.Join(dir, "pkg")
+			}
+			text, drift := repoWiring(cwd, Config{}, c.requireStop)
+			if drift != (len(c.want) > 0) {
+				t.Errorf("drift %t:\n%s", drift, text)
+			}
+			if len(c.want) == 0 && !strings.Contains(text, "repo "+dir+"\n  wiring: ok\n") {
+				t.Errorf("want ok at %s:\n%s", dir, text)
+			}
+			for _, w := range c.want {
+				if !strings.Contains(text, w) {
+					t.Errorf("missing %q in:\n%s", w, text)
+				}
+			}
+		})
+	}
+	if text, drift := repoWiring(t.TempDir(), Config{}, true); drift || !strings.Contains(text, "not in a Go module or workspace") {
+		t.Errorf("outside Go: drift %t\n%s", drift, text)
 	}
 }

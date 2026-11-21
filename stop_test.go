@@ -193,6 +193,21 @@ func TestStopStuckLetsThroughAndReminds(t *testing.T) {
 	if r := runHookEvent(t, startEvent("s4", dir)); strings.Contains(r.out, "still stand") {
 		t.Errorf("no session reminder after a clean stop: %+v", r)
 	}
+
+	// A clean stop in a later session ends an earlier session's reminder.
+	edit(t, filepath.Join(dir, "a.go"), vetBad)
+	runHookEvent(t, stopEvent("s5", dir, false))
+	runHookEvent(t, stopEvent("s5", dir, true))
+	if r := runHookEvent(t, startEvent("s6", dir)); !strings.Contains(r.out, "still stand") {
+		t.Fatalf("s5 left findings standing: %+v", r)
+	}
+	edit(t, filepath.Join(dir, "a.go"), cleanSrc)
+	if r := runHookEvent(t, stopEvent("s6", dir, false)); r.code != 0 {
+		t.Fatalf("s6 clean stop: %+v", r)
+	}
+	if r := runHookEvent(t, startEvent("s7", dir)); strings.Contains(r.out, "still stand") {
+		t.Errorf("s5's reminder outlived a clean stop in s6: %+v", r)
+	}
 }
 
 func TestAllowReleasesOneStop(t *testing.T) {
@@ -299,5 +314,41 @@ func TestStopWithoutGitIsReported(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	if r := runHookEvent(t, stopEvent("g1", dir, false)); r.code != 1 || !strings.Contains(r.stderr, "git not on PATH") {
 		t.Errorf("want exit 1 naming git: %+v", r)
+	}
+}
+
+// A file that does not parse is one blocking error, not a failed run:
+// before, the formatter's failure made check exit with an error, and
+// the hooks passed that on as a non-blocking exit 1.
+func TestSyntaxErrorBlocks(t *testing.T) {
+	hasGo(t)
+	isolateHome(t)
+	dir := gitRepo(t, stopFixture())
+	bad := "package fixture\n\nfunc A() int {\n\tx := \"unterminated\n\treturn 1\n}\n"
+	edit(t, filepath.Join(dir, "a.go"), bad)
+	a := filepath.Join(dir, "a.go")
+
+	for _, noApply := range []bool{true, false} {
+		var code int
+		out := captureStdout(t, func() { code = runCheckWith([]string{a}, noApply, false, defaultConfig()) })
+		fs := parseJSONL(t, out)
+		if code != 2 || len(fs) == 0 || fs[0].Line != 4 || fs[0].Class != "error" {
+			t.Errorf("no-apply=%t: exit %d, findings:\n%s", noApply, code, out)
+		}
+		at := map[int]int{}
+		for _, f := range fs {
+			at[f.Line*1000+f.Col]++
+		}
+		for p, n := range at {
+			if n > 1 {
+				t.Errorf("no-apply=%t: %d findings at %d:%d:\n%s", noApply, n, p/1000, p%1000, out)
+			}
+		}
+	}
+	if r := runHookEvent(t, hookEvent(dir, a)); r.code != 2 || !strings.Contains(r.stderr, "a.go:4:") {
+		t.Errorf("PostToolUse: %+v", r)
+	}
+	if r := runHookEvent(t, stopEvent("x1", dir, false)); r.code != 2 || !strings.Contains(r.stderr, "a.go:4:") {
+		t.Errorf("Stop: %+v", r)
 	}
 }

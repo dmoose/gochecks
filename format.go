@@ -25,14 +25,11 @@ func runGofmt(files []string, apply bool) ([]Finding, error) {
 	} else {
 		args = append(args, "-l")
 	}
-	out, err := formatCmd(tool, append(args, files...))
-	if err != nil {
-		return nil, err
+	out, parseErrs, err := formatCmd(tool, append(args, files...))
+	if err != nil || apply {
+		return parseErrs, err
 	}
-	if apply {
-		return nil, nil
-	}
-	return linesToFindings(out, tool, "needs "+tool), nil
+	return append(parseErrs, linesToFindings(out, tool, "needs "+tool)...), nil
 }
 
 // runGoimports runs goimports per module so -local can name the module
@@ -51,10 +48,11 @@ func runGoimports(files []string, apply bool) ([]Finding, error) {
 		if mod != "" {
 			args = append(args, "-local", mod)
 		}
-		out, err := formatCmd("goimports", append(args, group...))
+		out, parseErrs, err := formatCmd("goimports", append(args, group...))
 		if err != nil {
 			return nil, err
 		}
+		fs = append(fs, parseErrs...)
 		if !apply {
 			fs = append(fs, linesToFindings(out, "goimports", "needs goimports")...)
 		}
@@ -62,14 +60,20 @@ func runGoimports(files []string, apply bool) ([]Finding, error) {
 	return fs, nil
 }
 
-func formatCmd(tool string, args []string) (string, error) {
+// formatCmd runs a formatter. A file that does not parse is an error
+// finding at its position, not a failed run: the other files are still
+// formatted, and a syntax error must block like any other error.
+func formatCmd(tool string, args []string) (string, []Finding, error) {
 	cmd := exec.Command(tool, args...)
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%s: %w: %s", tool, err, strings.TrimSpace(stderr.String()))
+		if fs := textFindings(stderr.String(), "", tool, "error"); len(fs) > 0 {
+			return stdout.String(), fs, nil
+		}
+		return "", nil, fmt.Errorf("%s: %w: %s", tool, err, strings.TrimSpace(stderr.String()))
 	}
-	return stdout.String(), nil
+	return stdout.String(), nil, nil
 }
 
 // groupByModule buckets files by the module path of the nearest go.mod.

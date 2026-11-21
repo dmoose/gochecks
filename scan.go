@@ -40,8 +40,8 @@ func scanLaunchPoints(root string, requireStop bool) (points []string, problems 
 		if !isLaunchPoint(path) {
 			return nil
 		}
-		// Ignored directories are generated output, where no session
-		// starts. Neither is anything below them.
+		// A git-ignored launch point is generated output; no session
+		// starts there or below it.
 		if path != root && gitIgnored(path) {
 			return filepath.SkipDir
 		}
@@ -56,7 +56,7 @@ func scanLaunchPoints(root string, requireStop bool) (points []string, problems 
 
 // skipScanDir names directories that hold no launch point of their
 // own: the go tool ignores testdata, vendor, and names starting with
-// "." or "_". Directories git ignores are skipped too; see gitIgnored.
+// "." or "_".
 func skipScanDir(name string) bool {
 	switch name {
 	case "testdata", "vendor", "node_modules":

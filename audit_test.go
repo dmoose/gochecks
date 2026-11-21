@@ -58,6 +58,9 @@ func A() {
 		"Dockerfile":     "FROM golang\nRUN GOWORK=off go build ./...\n",
 		"ok/Makefile":    "GC = gochecks\ncheck: lint\nlint:\n\t$(GC) check --no-apply .\n",
 		"none/Makefile":  "check:\n\tgo vet ./...\n",
+		"sub/go.mod":     "module example.com/sub\n",
+		"sub/s_test.go":  "package sub\n",
+		"bare/go.mod":    "module example.com/bare\n",
 	})
 	// A real grant through allow, then one for another tree.
 	for id, cwd := range map[string]string{"s1": root, "s2": t.TempDir()} {
@@ -96,7 +99,8 @@ func A() {
 		".golangci.yml:19 golangci-config: severity overrides\n",
 		`.gochecks.json gochecks-config: "linters": false: golangci-lint does not run`,
 		`.gochecks.json gochecks-config: exclude "*_gen.go": matching files are never checked`,
-		`.gochecks.json gochecks-config: "test" is off`,
+		`go.mod gochecks-config: "test" is off (set in ` + filepath.Join(root, ".gochecks.json") + `): go test does not run on changed packages, and this module has tests`,
+		`sub/go.mod gochecks-config: "test" is off (set in `,
 		"Dockerfile:2 gowork-off: ",
 		"Makefile:2 gowork-off: ",
 		"go.mod:5 replace: example.com/y => ../y\n",
@@ -110,7 +114,7 @@ func A() {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
 	}
-	for _, not := range []string{"inside a string", "gen.go:", "testdata", "ok/Makefile", "session s2", "std-error-handling"} {
+	for _, not := range []string{"inside a string", "gen.go:", "testdata", "bare/", "ok/Makefile", "session s2", "std-error-handling"} {
 		if strings.Contains(got, not) {
 			t.Errorf("%q should not be listed:\n%s", not, got)
 		}
@@ -126,6 +130,16 @@ func A() {
 		if it.Kind == kindGolangci {
 			t.Errorf("profile copy listed: %+v", it)
 		}
+	}
+}
+
+// With no .gochecks.json, test is off by default; that counts too.
+func TestAuditTestOffByDefault(t *testing.T) {
+	isolateHome(t)
+	root := writeFixture(t, map[string]string{"go.mod": "module m\n", "m_test.go": "package m\n"})
+	items, _ := audit(root, false)
+	if len(items) != 1 || items[0].File != filepath.Join(root, "go.mod") || !strings.HasPrefix(items[0].Msg, `"test" is off (the default)`) {
+		t.Errorf("got %+v", items)
 	}
 }
 

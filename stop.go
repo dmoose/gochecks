@@ -88,9 +88,8 @@ func loadSession(id string) (sessionState, string) {
 	return st, path
 }
 
-// blockHash identifies a blocking set: the same findings, wherever
-// they moved to by line, hash the same only if nothing about them
-// changed.
+// blockHash identifies a blocking set. Any change to a finding, its
+// line included, changes the hash.
 func blockHash(fs []Finding) string {
 	lines := make([]string, len(fs))
 	for i, f := range fs {
@@ -186,6 +185,7 @@ func hookStop(ev hookInput, errw io.Writer) int {
 	if len(blocking) == 0 {
 		st.LastBlock, st.Count, st.Unresolved = "", 0, false
 		save()
+		clearUnresolved(ev.CWD)
 		return 0
 	}
 	h := blockHash(blocking)
@@ -193,6 +193,7 @@ func hookStop(ev hookInput, errw io.Writer) int {
 		invocationNote = "allowed: " + g.Reason
 		st.LastBlock, st.Count, st.Unresolved = "", 0, false
 		save()
+		clearUnresolved(ev.CWD)
 		return 0
 	}
 	if ev.StopHookActive && st.LastBlock == h {
@@ -249,18 +250,46 @@ func hookPrompt(ev hookInput, out io.Writer) int {
 // unresolvedIn returns the reminder for a session that ended in dir
 // with findings standing, or "".
 func unresolvedIn(dir string) string {
-	sdir, err := stopDir("sessions")
-	if err != nil {
-		return ""
-	}
-	entries, _ := os.ReadDir(sdir)
-	for _, e := range entries {
-		var st sessionState
-		if readJSON(filepath.Join(sdir, e.Name()), &st) == nil && st.Unresolved && st.CWD == dir {
-			return fmt.Sprintf(unresolvedLine, st.Count, st.CWD)
+	for _, s := range sessionsIn(dir) {
+		if s.st.Unresolved {
+			return fmt.Sprintf(unresolvedLine, s.st.Count, s.st.CWD)
 		}
 	}
 	return ""
+}
+
+// clearUnresolved ends the reminders for every session in dir: a stop
+// there passed, so the findings no longer stand, whichever session
+// left them.
+func clearUnresolved(dir string) {
+	for _, s := range sessionsIn(dir) {
+		if s.st.Unresolved {
+			s.st.Unresolved = false
+			_ = writeJSONFile(s.path, s.st)
+		}
+	}
+}
+
+type savedSession struct {
+	path string
+	st   sessionState
+}
+
+func sessionsIn(dir string) []savedSession {
+	sdir, err := stopDir("sessions")
+	if err != nil {
+		return nil
+	}
+	entries, _ := os.ReadDir(sdir)
+	var out []savedSession
+	for _, e := range entries {
+		path := filepath.Join(sdir, e.Name())
+		var st sessionState
+		if readJSON(path, &st) == nil && st.CWD == dir {
+			out = append(out, savedSession{path, st})
+		}
+	}
+	return out
 }
 
 func writeContext(out io.Writer, event, text string) {

@@ -120,11 +120,10 @@ func hookReport(findings []Finding, cwd string) string {
 	return b.String()
 }
 
-// hookSessionStart mentions, once, findings a session in this
-// directory left standing, a count of what audit lists, and
-// dependencies that are behind. Anything
-// that goes wrong stays silent; a session start is not the place to
-// report network trouble.
+// hookSessionStart adds, once, findings a session in this directory
+// left standing, a count of what audit lists, and dependencies that are
+// behind. Anything that goes wrong stays silent; a session start is not
+// the place to report network trouble.
 func hookSessionStart(ev hookInput, out io.Writer) int {
 	dir := ev.CWD
 	if dir == "" {
