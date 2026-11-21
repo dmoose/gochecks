@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -39,6 +40,11 @@ func scanLaunchPoints(root string) (points []string, problems []launchProblem, e
 		if !isLaunchPoint(path) {
 			return nil
 		}
+		// Ignored directories are generated output, where no session
+		// starts. Neither is anything below them.
+		if path != root && gitIgnored(path) {
+			return filepath.SkipDir
+		}
 		points = append(points, path)
 		for _, msg := range launchPointProblems(path) {
 			problems = append(problems, launchProblem{dir: path, msg: msg})
@@ -50,7 +56,7 @@ func scanLaunchPoints(root string) (points []string, problems []launchProblem, e
 
 // skipScanDir names directories that hold no launch point of their
 // own: the go tool ignores testdata, vendor, and names starting with
-// "." or "_".
+// "." or "_". Directories git ignores are skipped too; see gitIgnored.
 func skipScanDir(name string) bool {
 	switch name {
 	case "testdata", "vendor", "node_modules":
@@ -66,6 +72,13 @@ func isLaunchPoint(dir string) bool {
 		}
 	}
 	return false
+}
+
+// gitIgnored reports whether the repo enclosing dir ignores it. Outside
+// a repo nothing is ignored.
+func gitIgnored(dir string) bool {
+	cmd := exec.Command("git", "-C", filepath.Dir(dir), "check-ignore", "-q", filepath.Base(dir)) //nolint:gosec // fixed git subcommand; dir comes from the walk
+	return cmd.Run() == nil
 }
 
 // oldNameRE matches the pre-rename command name as a word.

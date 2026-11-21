@@ -54,6 +54,8 @@ func dispatch(args []string) int {
 		return runInstall(args[1:])
 	case "hook":
 		return runHook(args[1:])
+	case "allow":
+		return runAllow(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
 	case "deps":
@@ -85,13 +87,18 @@ Usage:
   gochecks doctor [--fix] [--offline] [--scan <dir>]
   gochecks status
   gochecks deps   [--fail] [--text]
-  gochecks install [--dir .] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
+  gochecks install [--dir .] [--stop] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
+  gochecks allow  [--session id] "<reason>"
   gochecks lint-config
   gochecks version
 
-hook         Claude Code PostToolUse entry point. Reads the event from stdin
-             and checks the edited Go file. Errors go to stderr with exit 2;
-             warnings and suggestions return as additionalContext.
+hook         Claude Code hook entry point; reads the event from stdin.
+             PostToolUse checks the edited Go file: errors go to stderr with
+             exit 2, warnings and suggestions return as additionalContext.
+             Stop checks every Go file changed since HEAD and exits 2 on
+             errors or warnings. See HOOKS.md.
+allow        Let one blocked Stop through, for the same findings only.
+             For the user: install --stop denies it to the agent.
 check        Formats with gofumpt (or gofmt) and goimports, then runs go
              build, go vet and the installed analyzers (staticcheck,
              errcheck, ineffassign, golangci-lint) on the changed packages.
@@ -112,7 +119,8 @@ deps         Direct Go modules, copied assets (the assets map in
              --fail exits 1 when anything is behind.
 install      Wire a repo or go.work root: PostToolUse hook in .claude/settings.json, the
              go-current skill, .claude/gochecks.md. --upgrade refreshes
-             those; --config adds .gochecks.json; --lint-config adds the
+             those; --stop adds the blocking Stop hook and its reminder;
+             --config adds .gochecks.json; --lint-config adds the
              profile as .golangci.yml, never overwriting one.
 lint-config  Print the golangci-lint profile used for repos without one.
 

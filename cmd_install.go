@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -23,6 +24,10 @@ const hookCommand = `gochecks hook`
 // hookMatcher names the file-editing tools.
 const hookMatcher = "Edit|Write"
 
+// allowDeny keeps the agent from releasing its own Stop block. It is
+// not a security boundary; it makes the attempt visible and refused.
+const allowDeny = "Bash(gochecks allow:*)"
+
 func runInstall(args []string) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -35,6 +40,7 @@ func runInstall(args []string) int {
 		noDoc   bool
 		config  bool
 		lintCfg bool
+		stop    bool
 	)
 	fs.StringVar(&dir, "dir", ".", "target repo root")
 	fs.BoolVar(&force, "force", false, "overwrite existing files")
@@ -43,6 +49,7 @@ func runInstall(args []string) int {
 	fs.BoolVar(&noSkill, "no-skill", false, "skip .claude/skills/go-current installation")
 	fs.BoolVar(&noDoc, "no-doc", false, "skip .claude/gochecks.md doc drop")
 	fs.BoolVar(&config, "config", false, "also scaffold a default .gochecks.json")
+	fs.BoolVar(&stop, "stop", false, "also wire the blocking Stop hook, its UserPromptSubmit reminder, and deny `gochecks allow` to the agent")
 	fs.BoolVar(&lintCfg, "lint-config", false, "also write the gochecks lint profile as .golangci.yml (never overwrites)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -55,7 +62,7 @@ func runInstall(args []string) int {
 	}
 
 	if !noHook {
-		if err := installHook(root, force || upgrade); err != nil {
+		if err := installHook(root, force || upgrade, stop); err != nil {
 			fmt.Fprintln(os.Stderr, "gochecks: install hook:", err)
 			return 2
 		}
@@ -88,7 +95,7 @@ func runInstall(args []string) int {
 	return 0
 }
 
-func installHook(root string, overwrite bool) error {
+func installHook(root string, overwrite, stop bool) error {
 	settingsPath := filepath.Join(root, ".claude", "settings.json")
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
 		return err
@@ -109,10 +116,15 @@ func installHook(root string, overwrite bool) error {
 		hooks = map[string]any{}
 	}
 	present := false
-	for event, entry := range map[string]map[string]any{
+	entries := map[string]map[string]any{
 		"PostToolUse":  {"matcher": hookMatcher, "hooks": command},
 		"SessionStart": {"hooks": command},
-	} {
+	}
+	if stop {
+		entries["Stop"] = map[string]any{"hooks": command}
+		entries["UserPromptSubmit"] = map[string]any{"hooks": command}
+	}
+	for event, entry := range entries {
 		list, _ := hooks[event].([]any)
 		// Replace an existing entry only with --force or --upgrade.
 		if idx := findGocheckHook(list); idx >= 0 {
@@ -130,6 +142,17 @@ func installHook(root string, overwrite bool) error {
 		fmt.Printf("gochecks: hook already present in %s (use --force or --upgrade to replace)\n", settingsPath)
 	}
 	existing["hooks"] = hooks
+	if stop {
+		perms, _ := existing["permissions"].(map[string]any)
+		if perms == nil {
+			perms = map[string]any{}
+		}
+		deny, _ := perms["deny"].([]any)
+		if !slices.Contains(deny, any(allowDeny)) {
+			perms["deny"] = append(deny, allowDeny)
+		}
+		existing["permissions"] = perms
+	}
 
 	buf, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {

@@ -36,6 +36,21 @@ next action.
 - `.claude/gochecks.md`, this file.
 - `.gochecks.json`, optional; only if you ran `install --config`.
 - `.golangci.yml`, optional; only if you ran `install --lint-config`.
+- With `install --stop`: `gochecks hook` on Stop and UserPromptSubmit,
+  and `Bash(gochecks allow:*)` in `permissions.deny`.
+
+## The Stop check (with `install --stop`)
+
+Before a turn ends, every `.go` file that differs from HEAD or is
+untracked is checked, edits made through Bash included. Errors and
+warnings keep the turn going until they are fixed.
+
+- Touching a file means owning every finding in it, whoever wrote the
+  line. "Pre-existing" is not a reason to leave one.
+- Never silence a finding to get past the check: no bare `//nolint`,
+  no new `exclude`, no turning a linter off.
+- If a finding looks wrong, stop and ask the user. Only the user can
+  release a stop, with `gochecks allow "<reason>"`.
 
 ## Get the most out of it
 

@@ -74,6 +74,11 @@ Code reads settings only from the directory a session starts in.
 `gochecks doctor --scan <dir>` lists every module or workspace under
 `dir` that is not wired, and exits 1 if there is one.
 
+`gochecks install --stop` adds a Stop hook that keeps the agent working
+while files changed since HEAD have errors or warnings, including files
+edited through Bash. Only you can let a turn end past them, with
+`gochecks allow "<reason>"`; see HOOKS.md.
+
 `gochecks install --upgrade` refreshes those files after a gochecks
 update. `gochecks install --lint-config` additionally writes the lint
 profile as `.golangci.yml`; see Linting.
@@ -94,7 +99,8 @@ start it adds one line when dependencies have newer releases.
 | `doctor [--fix] [--scan dir]` | toolchain and analyzer health; `--fix` installs or updates; `--scan` lists unwired launch points |
 | `deps [--fail]` | direct modules, copied assets and workflow pins with a newer release; `--fail` exits 1 when any |
 | `status` | config in effect and the hook log tail |
-| `install` | wire a repo; `--upgrade`, `--config`, `--lint-config` as above |
+| `install` | wire a repo; `--stop`, `--upgrade`, `--config`, `--lint-config` as above |
+| `allow "<reason>"` | let one blocked Stop through; for the user, denied to the agent |
 | `lint-config` | print the built-in golangci-lint profile |
 | `version` | version, from the release build or the module |
 

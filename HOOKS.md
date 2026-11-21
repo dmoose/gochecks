@@ -76,6 +76,62 @@ gochecks: 2 dependencies behind: plinth v0.2.0 -> v0.4.0, htmx.min.js 2.0.4 -> 2
 
 Network failures and repos without a go.mod stay silent.
 
+## Stop: the blocking check
+
+`gochecks install --stop` also wires `gochecks hook` on Stop and
+UserPromptSubmit, and adds `Bash(gochecks allow:*)` to
+`permissions.deny`.
+
+When the agent tries to end its turn, the hook checks every `.go` file
+that differs from HEAD or is untracked and not ignored, in the repo at
+the session directory or, at a `go.work` root that is not a repo, in
+the repo of each module it uses. This sees edits made through Bash,
+which PostToolUse never does. It runs `check --no-apply` on them, with
+each file's `.gochecks.json` and its `exclude`.
+
+- Errors or warnings: exit 2 with the findings on stderr. Claude Code
+  hands them to the agent and the turn goes on.
+- Suggestions only: exit 0. They come with the next prompt as context,
+  once; context added at Stop would keep the turn going.
+- git not on PATH: exit 1 with a note; the check cannot see changes.
+
+The report tells the agent that touching a file means owning every
+finding in it, and to ask the user when a finding looks wrong.
+
+### Override
+
+```sh
+gochecks allow "<reason>"
+gochecks allow --session <id> "<reason>"
+```
+
+`allow` releases the most recent block of a session started in the
+current directory or below it, once, and only for the same blocking
+set: a new or changed finding blocks again. A reason is required.
+Grants and their use are logged to `~/Library/Caches/gochecks/stop/allow.log`
+(the user cache dir elsewhere) and the run to `hook.log`.
+
+The deny rule refuses `gochecks allow` from the agent's Bash tool. It
+is not a security boundary: Claude Code matches the command text, so
+another spelling gets past it. Run `allow` in your own terminal, or
+type `! gochecks allow "<reason>"` in the session: Claude Code's docs
+describe `!` commands as running without Claude, outside the
+permission rules.
+
+### A stuck agent
+
+When the agent stops again with `stop_hook_active` set and the same
+blocking set, it made no progress. The hook lets the turn end, marks
+the findings unresolved, and adds one line to every following prompt
+and to the next session started in the same directory:
+
+```
+gochecks: 3 blocking finding(s) from the last stop still stand in /path/repo. Fix them, or ask the user to run: gochecks allow "<reason>"
+```
+
+The line stops once a Stop check passes or `allow` is run. Claude Code
+also ends a turn on its own after eight blocks in a row.
+
 ## Files are rewritten in place
 
 `gochecks hook` and `check` run `gofmt -s -w` and `goimports -w` on the
@@ -121,8 +177,8 @@ tail -f ~/Library/Caches/gochecks/hook.log
 with a `go.mod` or `go.work` that has no `.claude/settings.json`, no
 `gochecks hook` on PostToolUse, or still runs `gocheck`, the old name,
 in its settings or Makefile. It skips `testdata`, `vendor`,
-`node_modules` and hidden directories, and exits 1 when it lists
-anything.
+`node_modules`, hidden directories and directories git ignores, and
+exits 1 when it lists anything.
 
 Every run appends a line with duration, exit code, finding count and,
 for `hook`, the file. To drive the hook by hand:

@@ -9,12 +9,14 @@ import (
 	"strings"
 )
 
-// hookInput is the part of the PostToolUse event read from stdin.
+// hookInput is the part of the hook events read from stdin.
 type hookInput struct {
-	HookEventName string `json:"hook_event_name"`
-	ToolName      string `json:"tool_name"`
-	CWD           string `json:"cwd"`
-	ToolInput     struct {
+	HookEventName  string `json:"hook_event_name"`
+	SessionID      string `json:"session_id"`
+	StopHookActive bool   `json:"stop_hook_active"`
+	ToolName       string `json:"tool_name"`
+	CWD            string `json:"cwd"`
+	ToolInput      struct {
 		FilePath string `json:"file_path"`
 	} `json:"tool_input"`
 }
@@ -40,8 +42,13 @@ func hook(in io.Reader, out, errw io.Writer) int {
 		_, _ = fmt.Fprintln(errw, "gochecks hook: bad input:", err)
 		return 1
 	}
-	if ev.HookEventName == "SessionStart" {
+	switch ev.HookEventName {
+	case "SessionStart":
 		return hookSessionStart(ev, out)
+	case "Stop":
+		return hookStop(ev, errw)
+	case "UserPromptSubmit":
+		return hookPrompt(ev, out)
 	}
 	if ev.ToolInput.FilePath == "" {
 		return 0
@@ -113,27 +120,27 @@ func hookReport(findings []Finding, cwd string) string {
 	return b.String()
 }
 
-// hookSessionStart mentions dependencies that are behind, once, when a
-// session opens in a Go repo. Anything that goes wrong stays silent;
-// a session start is not the place to report network trouble.
+// hookSessionStart mentions, once, findings a session in this
+// directory left standing and dependencies that are behind. Anything
+// that goes wrong stays silent; a session start is not the place to
+// report network trouble.
 func hookSessionStart(ev hookInput, out io.Writer) int {
 	dir := ev.CWD
-	if dir == "" || modulePath(dir) == "" {
+	if dir == "" {
 		return 0
 	}
-	cfg, err := loadConfig(dir)
-	if err != nil {
-		return 0
+	text := unresolvedIn(dir)
+	if modulePath(dir) != "" {
+		if cfg, err := loadConfig(dir); err == nil {
+			if deps, err := behindDeps(dir, cfg); err == nil && len(deps) > 0 {
+				invocationFindings = len(deps)
+				text += depsSummary(deps)
+			}
+		}
 	}
-	deps, err := behindDeps(dir, cfg)
-	if err != nil || len(deps) == 0 {
-		return 0
+	if text != "" {
+		writeContext(out, "SessionStart", text)
 	}
-	invocationFindings = len(deps)
-	var resp hookOutput
-	resp.HookSpecificOutput.HookEventName = "SessionStart"
-	resp.HookSpecificOutput.AdditionalContext = depsSummary(deps)
-	writeJSON(out, resp)
 	return 0
 }
 

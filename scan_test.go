@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -105,5 +106,27 @@ func TestHookAtWorkspaceRoot(t *testing.T) {
 	code := hook(strings.NewReader(hookEvent(dir, filepath.Join(dir, "a", "bad.go"))), &out, &errw)
 	if code != 2 || !strings.Contains(errw.String(), "a/bad.go:6:") || !strings.Contains(errw.String(), "error/vet") {
 		t.Errorf("want vet error on a/bad.go; code=%d stderr=%q", code, errw.String())
+	}
+}
+
+// A module in a directory git ignores is generated output, not a place
+// a session starts.
+func TestDoctorScanSkipsGitIgnored(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	isolateHome(t)
+	root := writeFixture(t, map[string]string{
+		"site/.gitignore":       "output/\n",
+		"site/output/x/go.mod":  "module x\n",
+		"site/tools/gen/go.mod": "module gen\n",
+	})
+	if out, err := exec.Command("git", "init", "-q", filepath.Join(root, "site")).CombinedOutput(); err != nil { //nolint:gosec // test fixture
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	var out bytes.Buffer
+	runScan(root, &out)
+	if strings.Contains(out.String(), "output") || !strings.Contains(out.String(), "site/tools/gen/: ") {
+		t.Errorf("want only site/tools/gen reported:\n%s", out.String())
 	}
 }
