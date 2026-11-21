@@ -30,6 +30,8 @@ linters:
     - gosec
     - makezero
     - nilerr
+    # suppressions name the linter and say why
+    - nolintlint
     - nilnesserr
     - predeclared
     - reassign
@@ -62,6 +64,9 @@ linters:
         - G301 # 0755 directories and 0644 files are normal for source
         - G302
         - G306
+    nolintlint:
+      require-explanation: true # //nolint:x // why
+      require-specific: true # //nolint:x, never a bare //nolint
     errorlint:
       asserts: false # errors.AsType is the fix, not a type switch rewrite
     revive:

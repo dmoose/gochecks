@@ -125,7 +125,7 @@ func runDoctor(args []string) int {
 	}
 	for _, pkg := range installs {
 		fmt.Println(installCmd(goVer, pkg))
-		cmd := exec.Command("go", "install", pkg) //nolint:gosec // pkg comes from toolSpecs
+		cmd := exec.Command("go", "install", pkg)
 		cmd.Env = installEnv(goVer)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		if err := cmd.Run(); err != nil {

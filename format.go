@@ -63,7 +63,7 @@ func runGoimports(files []string, apply bool) ([]Finding, error) {
 }
 
 func formatCmd(tool string, args []string) (string, error) {
-	cmd := exec.Command(tool, args...) //nolint:gosec // tool is gofmt, gofumpt or goimports
+	cmd := exec.Command(tool, args...)
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

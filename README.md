@@ -163,6 +163,11 @@ because `go fix` already runs it, and noctx because it flags every
 `exec.Command` in a command-line tool. gosec's file-permission and
 unhandled-error rules are excluded for the same reasons.
 
+nolintlint makes every suppression visible and accountable: a bare
+`//nolint`, one without a reason, and one that no longer suppresses
+anything are warnings. Write `//nolint:errcheck // why`. staticcheck's
+own `//lint:ignore Check reason` already requires a reason.
+
 Findings from the idiom linters are suggestions; the rest are warnings,
 or errors when golangci-lint itself says so. With `auto_fix` on, the
 autofixes are applied before anything is reported.
