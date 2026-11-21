@@ -97,6 +97,7 @@ start it adds one line when dependencies have newer releases.
 | `fix [files]` | `check` with `go fix` modernize first |
 | `show file:line` | source context and vet findings at a position |
 | `doctor [--fix] [--scan dir]` | toolchain and analyzer health; `--fix` installs or updates; `--scan` lists unwired launch points |
+| `audit [--offline] [dir]` | everything that turns a check off or pins something; read-only |
 | `deps [--fail]` | direct modules, copied assets and workflow pins with a newer release; `--fail` exits 1 when any |
 | `status` | config in effect and the hook log tail |
 | `install` | wire a repo; `--stop`, `--upgrade`, `--config`, `--lint-config` as above |
@@ -231,6 +232,28 @@ workflow golangci-lint (go.yml) v2.12.2 -> v2.15.0
 for CI or a `make check` that should fail. The SessionStart hook runs
 the same check and adds one line of context when something is behind,
 and stays silent on network trouble.
+
+## Audit
+
+`gochecks audit [dir]` lists, read-only, everything under `dir` that
+turns a check off or freezes something, so a choice made once to get
+past a problem stays visible:
+
+- every `//nolint` and `//lint:ignore`, with linter and reason
+- a `.golangci.yml` that departs from the built-in profile: profile
+  linters it does not run, disabled linters, exclusions, severity
+  overrides
+- `.gochecks.json` settings that switch checks off: `"linters": false`,
+  each `exclude`, and `test` off where the tree has tests
+- `GOWORK=off` in a Makefile or Dockerfile
+- `replace` directives in go.mod
+- dependencies behind, as `deps` reports them (skipped with `--offline`)
+- a Makefile `check` target that does not run gochecks, or runs the
+  old `gocheck`
+- Stop-hook releases granted with `gochecks allow`
+
+Output is JSON lines, or `--text`. The SessionStart hook adds one line
+with the counts when there is anything to list.
 
 ## Not in scope
 

@@ -56,6 +56,8 @@ func dispatch(args []string) int {
 		return runHook(args[1:])
 	case "allow":
 		return runAllow(args[1:])
+	case "audit":
+		return runAudit(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
 	case "deps":
@@ -87,6 +89,7 @@ Usage:
   gochecks doctor [--fix] [--offline] [--scan <dir> [--require-stop]]
   gochecks status
   gochecks deps   [--fail] [--text]
+  gochecks audit  [--offline] [--text] [dir]
   gochecks install [--dir .] [--stop] [--upgrade] [--force] [--no-hook] [--no-skill] [--no-doc] [--config] [--lint-config]
   gochecks allow  [--session id] "<reason>"
   gochecks lint-config
@@ -118,6 +121,13 @@ deps         Direct Go modules, copied assets (the assets map in
              .gochecks.json, file -> npm package) and version pins in
              .github/workflows with a newer release, own modules first.
              --fail exits 1 when anything is behind.
+audit        Read-only list of everything under dir (default .) that turns
+             a check off or pins something: //nolint and //lint:ignore with
+             their reasons, a golangci-lint config that departs from the
+             profile, .gochecks.json settings that switch checks off,
+             GOWORK=off in Makefiles and Dockerfiles, go.mod replaces,
+             dependencies behind (not with --offline), a make check that
+             does not run gochecks, and Stop releases granted by allow.
 install      Wire a repo or go.work root: PostToolUse hook in .claude/settings.json, the
              go-current skill, .claude/gochecks.md. --upgrade refreshes
              those; --stop adds the blocking Stop hook and its reminder;

@@ -121,7 +121,8 @@ func hookReport(findings []Finding, cwd string) string {
 }
 
 // hookSessionStart mentions, once, findings a session in this
-// directory left standing and dependencies that are behind. Anything
+// directory left standing, a count of what audit lists, and
+// dependencies that are behind. Anything
 // that goes wrong stays silent; a session start is not the place to
 // report network trouble.
 func hookSessionStart(ev hookInput, out io.Writer) int {
@@ -129,7 +130,7 @@ func hookSessionStart(ev hookInput, out io.Writer) int {
 	if dir == "" {
 		return 0
 	}
-	text := unresolvedIn(dir)
+	text := unresolvedIn(dir) + auditSummary(dir)
 	if modulePath(dir) != "" {
 		if cfg, err := loadConfig(dir); err == nil {
 			if deps, err := behindDeps(dir, cfg); err == nil && len(deps) > 0 {

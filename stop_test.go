@@ -190,7 +190,7 @@ func TestStopStuckLetsThroughAndReminds(t *testing.T) {
 	if r := runHookEvent(t, promptEvent("s1", dir)); r.out != "" {
 		t.Errorf("no reminder after a clean stop: %+v", r)
 	}
-	if r := runHookEvent(t, startEvent("s4", dir)); r.out != "" {
+	if r := runHookEvent(t, startEvent("s4", dir)); strings.Contains(r.out, "still stand") {
 		t.Errorf("no session reminder after a clean stop: %+v", r)
 	}
 }

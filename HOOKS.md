@@ -76,6 +76,14 @@ gochecks: 2 dependencies behind: plinth v0.2.0 -> v0.4.0, htmx.min.js 2.0.4 -> 2
 
 Network failures and repos without a go.mod stay silent.
 
+When `gochecks audit` would list anything under the session directory,
+one more line gives the counts (dependencies are left to the line
+above):
+
+```
+gochecks: 7 suppression(s), 1 make check gap(s): gochecks audit --text
+```
+
 ## Stop: the blocking check
 
 `gochecks install --stop` also wires `gochecks hook` on Stop and
