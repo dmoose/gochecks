@@ -17,6 +17,9 @@ type Finding struct {
 	// broken marks a tool that cannot read this toolchain; such a
 	// finding is not tied to the changed files.
 	broken bool
+	// failed marks a tool run that loaded nothing: it names the
+	// package or module directory, not a changed file.
+	failed bool
 }
 
 func emit(findings []Finding, textOut bool) {

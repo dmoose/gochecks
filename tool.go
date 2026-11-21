@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -39,15 +40,31 @@ func ignoreCfg(f func(string) ([]Finding, error)) func(string, Config) ([]Findin
 	return func(d string, _ Config) ([]Finding, error) { return f(d) }
 }
 
-// runTool runs name in dir and returns both streams. Exit status is
-// ignored; every tool here exits non-zero on findings.
-func runTool(dir, name string, args ...string) (stdout, stderr string) {
+// toolRun is one tool invocation: both streams, the exit code, and
+// startErr when the tool could not be started at all.
+type toolRun struct {
+	stdout, stderr string
+	code           int
+	startErr       error
+}
+
+// runTool runs name in dir. A non-zero exit is not an error here: most
+// tools exit non-zero on findings. See failedRun.
+func runTool(dir, name string, args ...string) toolRun {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
-	_ = cmd.Run()
-	return out.String(), errb.String()
+	r := toolRun{}
+	if err := cmd.Run(); err != nil {
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+			r.code = exit.ExitCode()
+		} else {
+			r.startErr = err
+		}
+	}
+	r.stdout, r.stderr = out.String(), errb.String()
+	return r
 }
 
 // absIn anchors a tool-reported path to the package directory.
@@ -147,12 +164,12 @@ func sortFindings(fs []Finding) {
 	})
 }
 
-// filterScope keeps findings in the changed files, and broken-tool
-// findings, which concern no file.
+// filterScope keeps findings in the changed files, and broken-tool and
+// failed-run findings, which concern no file.
 func filterScope(findings []Finding, scope map[string]bool) []Finding {
 	var out []Finding
 	for _, f := range findings {
-		if f.broken || scope[f.File] {
+		if f.broken || f.failed || scope[f.File] {
 			out = append(out, f)
 		}
 	}

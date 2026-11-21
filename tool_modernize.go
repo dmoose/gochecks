@@ -72,18 +72,26 @@ func modernizeDiff(pkgDir string, scope map[string]bool) ([]fileDiff, string, er
 // modernizePending reports the rewrites go fix would make, without
 // writing anything.
 func modernizePending(pkgDir string) ([]Finding, error) {
-	stdout, _ := runTool(pkgDir, "go", "fix", "-json", ".")
-	return analysisFindings(parseAnalysisJSON(stdout), pkgDir, "modernize", "suggestion",
+	r := runTool(pkgDir, "go", "fix", "-json", ".")
+	fs := analysisFindings(parseAnalysisJSON(r.stdout), pkgDir, "modernize", "suggestion",
 		func(analyzer, msg string) string {
 			return msg + " (" + analyzer + "; gochecks fix applies it)"
-		}), nil
+		})
+	// -json exits 0 with diagnostics; non-zero means go fix did not run.
+	if len(fs) == 0 {
+		return failedRun(r, pkgDir, "modernize", "warning", r.stderr), nil
+	}
+	return fs, nil
 }
 
 // modernizeConflicts lists the fixes go fix left unapplied, each at
 // its own position.
 func modernizeConflicts(pkgDir string) []Finding {
-	stdout, _ := runTool(pkgDir, "go", "fix", "-json", ".")
-	return parseModernize(stdout, pkgDir)
+	r := runTool(pkgDir, "go", "fix", "-json", ".")
+	if fs := parseModernize(r.stdout, pkgDir); len(fs) > 0 {
+		return fs
+	}
+	return failedRun(r, pkgDir, "modernize", "warning", r.stderr)
 }
 
 func parseModernize(out, pkgDir string) []Finding {

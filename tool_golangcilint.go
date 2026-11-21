@@ -20,6 +20,9 @@ type glReport struct {
 			Column   int    `json:"Column"`
 		} `json:"Pos"`
 	} `json:"Issues"`
+	Report struct {
+		Error string `json:"Error"`
+	} `json:"Report"`
 }
 
 func golangciLintAvailable() bool {
@@ -90,27 +93,42 @@ func runGolangciLint(pkgDir string, autoFix bool) ([]Finding, error) {
 		args = append(args, "--fix")
 	}
 	args = append(args, ".")
-	stdout, stderr := runTool(pkgDir, "golangci-lint", args...)
+	r := runTool(pkgDir, "golangci-lint", args...)
 	// A toolchain mismatch aborts before any JSON is written.
-	if toolBroken(stderr) {
+	if toolBroken(r.stderr) {
 		return brokenFinding("golangci-lint", pkgDir), nil
 	}
-	return parseGolangciLint(stdout, pkgDir), nil
+	fs, rep, ok := parseGolangciReport(r.stdout, pkgDir)
+	switch {
+	case toolBroken(rep.Report.Error):
+		return brokenFinding("golangci-lint", pkgDir), nil
+	case rep.Report.Error != "":
+		// It loaded nothing, wrote an empty report, and exited 7.
+		return failedRun(toolRun{code: max(r.code, 1)}, pkgDir, "golangci-lint", "warning", rep.Report.Error), nil
+	case !ok:
+		// Exit 1 means issues, which come with a report.
+		return failedRun(r, pkgDir, "golangci-lint", "warning", r.stderr), nil
+	}
+	return fs, nil
 }
 
 func parseGolangciLint(out, pkgDir string) []Finding {
-	if out == "" {
-		return nil
-	}
+	fs, _, _ := parseGolangciReport(out, pkgDir)
+	return fs
+}
+
+// parseGolangciReport returns the findings and the report, and whether
+// a report was there to read.
+func parseGolangciReport(out, pkgDir string) ([]Finding, glReport, bool) {
 	// The report is the first JSON value; anything after it is text.
 	var rep glReport
-	if err := json.NewDecoder(strings.NewReader(out)).Decode(&rep); err != nil {
-		return nil
+	if out == "" || json.NewDecoder(strings.NewReader(out)).Decode(&rep) != nil {
+		return nil, rep, false
 	}
 	fs := make([]Finding, 0, len(rep.Issues))
 	for _, is := range rep.Issues {
 		if is.FromLinter == "typecheck" && toolBroken(is.Text) {
-			return brokenFinding("golangci-lint", pkgDir)
+			return brokenFinding("golangci-lint", pkgDir), rep, true
 		}
 		file := is.Pos.Filename
 		if file == "" || formatterLinters[is.FromLinter] {
@@ -132,5 +150,5 @@ func parseGolangciLint(out, pkgDir string) []Finding {
 			Msg:   is.Text,
 		})
 	}
-	return fs
+	return fs, rep, true
 }

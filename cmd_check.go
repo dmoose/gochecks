@@ -200,7 +200,7 @@ func analyzePackages(pkgs map[string][]string, scope map[string]bool, cfg Config
 		}
 		findings = append(findings, r.findings...)
 	}
-	return collapseBroken(findings), nil
+	return dedupeFailed(collapseBroken(findings)), nil
 }
 
 type toolProbes struct {

@@ -13,16 +13,26 @@ type buildEvent struct {
 	Output     string
 }
 
-// runBuild compiles pkgDir and returns compile errors as findings.
+// runBuild compiles pkgDir and returns compile errors as findings. A
+// failed build with no positioned error, such as a module the go.work
+// does not list, is one error naming why.
 func runBuild(pkgDir string) []Finding {
-	stdout, stderr := runTool(pkgDir, "go", "build", "-json", "-o", os.DevNull, ".")
+	r := runTool(pkgDir, "go", "build", "-json", "-o", os.DevNull, ".")
 	// Errors before the build starts are plain text on stderr.
-	return append(parseBuildEvents(stdout, pkgDir), parseBuild(stderr, pkgDir)...)
+	fs := append(parseBuildEvents(r.stdout, pkgDir), parseBuild(r.stderr, pkgDir)...)
+	if len(fs) > 0 {
+		return fs
+	}
+	return failedRun(r, pkgDir, "build", "error", buildEventText(r.stdout)+r.stderr)
 }
 
 // parseBuildEvents joins the build-output events, which together are
 // the text build's output.
 func parseBuildEvents(out, pkgDir string) []Finding {
+	return parseBuild(buildEventText(out), pkgDir)
+}
+
+func buildEventText(out string) string {
 	var text strings.Builder
 	for line := range strings.SplitSeq(out, "\n") {
 		var ev buildEvent
@@ -33,7 +43,7 @@ func parseBuildEvents(out, pkgDir string) []Finding {
 			text.WriteString(ev.Output)
 		}
 	}
-	return parseBuild(text.String(), pkgDir)
+	return text.String()
 }
 
 func parseBuild(out, pkgDir string) []Finding {

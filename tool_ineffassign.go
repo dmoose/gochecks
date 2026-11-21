@@ -9,8 +9,12 @@ func ineffassignAvailable() bool {
 
 // runIneffassign reports assignments whose value is never used.
 func runIneffassign(pkgDir string) ([]Finding, error) {
-	_, stderr := runTool(pkgDir, "ineffassign", ".")
-	return parseIneffassign(stderr, pkgDir), nil
+	r := runTool(pkgDir, "ineffassign", ".")
+	fs := parseIneffassign(r.stderr, pkgDir)
+	if len(fs) == 0 {
+		return failedRun(r, pkgDir, "ineffassign", "warning", r.stderr), nil
+	}
+	return fs, nil
 }
 
 func parseIneffassign(out, pkgDir string) []Finding {

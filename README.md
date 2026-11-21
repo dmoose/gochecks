@@ -45,6 +45,11 @@ after a Go upgrade: analyzers built against an older Go cannot read the
 new export data, and until they are rebuilt gochecks reports each one
 as a single warning instead of its findings.
 
+A tool that runs but checks nothing is never a pass. A module that the
+enclosing `go.work` does not list is an error naming the missing `use`
+line; an analyzer that fails without findings is a warning with its
+output.
+
 Archives for macOS, Linux and Windows are on the
 [releases page](https://github.com/dmoose/gochecks/releases).
 

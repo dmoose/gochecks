@@ -24,8 +24,25 @@ func staticcheckAvailable() bool {
 }
 
 func runStaticcheck(pkgDir string) ([]Finding, error) {
-	stdout, stderr := runTool(pkgDir, "staticcheck", "-f", "json", ".")
-	return parseStaticcheck(stdout+stderr, pkgDir), nil
+	r := runTool(pkgDir, "staticcheck", "-f", "json", ".")
+	fs := parseStaticcheck(r.stdout+r.stderr, pkgDir)
+	if len(fs) == 0 {
+		return failedRun(r, pkgDir, "staticcheck", "warning", staticcheckErrors(r.stdout)+r.stderr), nil
+	}
+	return fs, nil
+}
+
+// staticcheckErrors returns the messages of diagnostics that name no
+// file, which is how staticcheck reports a package it could not load.
+func staticcheckErrors(out string) string {
+	var b strings.Builder
+	for line := range strings.SplitSeq(out, "\n") {
+		var d staticcheckDiag
+		if json.Unmarshal([]byte(line), &d) == nil && d.Location.File == "" {
+			b.WriteString(d.Message + "\n")
+		}
+	}
+	return b.String()
 }
 
 func parseStaticcheck(out, pkgDir string) []Finding {

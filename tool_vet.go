@@ -5,9 +5,13 @@ import "strings"
 // runVet runs go vet -json. A package that fails to typecheck reports
 // plain text on stderr instead of JSON.
 func runVet(pkgDir string) ([]Finding, error) {
-	stdout, stderr := runTool(pkgDir, "go", "vet", "-json", ".")
-	fs := parseVet(stdout, pkgDir)
-	return append(fs, parseVetText(stderr, pkgDir)...), nil
+	r := runTool(pkgDir, "go", "vet", "-json", ".")
+	fs := append(parseVet(r.stdout, pkgDir), parseVetText(r.stderr, pkgDir)...)
+	// -json exits 0 with diagnostics; non-zero means vet did not run.
+	if len(fs) == 0 {
+		return failedRun(r, pkgDir, "vet", "error", r.stderr), nil
+	}
+	return fs, nil
 }
 
 func parseVet(out, pkgDir string) []Finding {

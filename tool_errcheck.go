@@ -13,8 +13,12 @@ func errcheckAvailable() bool {
 // runErrcheck reports unchecked errors; errcheck prints the offending
 // source line after the position.
 func runErrcheck(pkgDir string) ([]Finding, error) {
-	stdout, stderr := runTool(pkgDir, "errcheck", "-abspath", ".")
-	return parseErrcheck(stdout+stderr, pkgDir), nil
+	r := runTool(pkgDir, "errcheck", "-abspath", ".")
+	fs := parseErrcheck(r.stdout+r.stderr, pkgDir)
+	if len(fs) == 0 {
+		return failedRun(r, pkgDir, "errcheck", "warning", r.stderr), nil
+	}
+	return fs, nil
 }
 
 func parseErrcheck(out, pkgDir string) []Finding {
